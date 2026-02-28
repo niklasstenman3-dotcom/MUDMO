@@ -1468,11 +1468,54 @@ class App {
     }
   }
 
+  _doorProxyIdForExitId(exitId){ return `doorProxy_${exitId}`; }
+
+  _getDoorProxyFromId(id, ctx=this.ctx){
+    if (!id || !String(id).startsWith("doorProxy_")) return null;
+    const room = ctx?.room;
+    if (!room) return null;
+    const exitId = String(id).slice("doorProxy_".length);
+    const ex = room.entities[exitId];
+    if (!ex || ex.kind !== Schema.EntityKind.EXIT) return null;
+    const gate = ex.state?.gate || { type:"open" };
+    if (gate.type !== "door" || !gate.doorId) return null;
+    const door = room.doors?.[gate.doorId] || null;
+    return {
+      id,
+      kind: Schema.EntityKind.OBJECT,
+      name: `${titleCase(ex.state.dir)} Door`,
+      _proxyType: "door",
+      state: {
+        objectType: "door",
+        dir: ex.state.dir,
+        exitId: ex.id,
+        doorId: gate.doorId,
+        doorExists: !!door,
+        locked: !!door?.locked,
+        open: !!door?.open,
+        destination: ex.state.toRoomName || ex.state.toRoomId || "Unknown"
+      }
+    };
+  }
+
+  _getDoorProxyFromExit(ex, ctx=this.ctx){
+    if (!ex || ex.kind !== Schema.EntityKind.EXIT) return null;
+    const gate = ex.state?.gate || { type:"open" };
+    if (gate.type !== "door" || !gate.doorId) return null;
+    return this._getDoorProxyFromId(this._doorProxyIdForExitId(ex.id), ctx);
+  }
+
+  _getSelectableEntity(entityId, ctx=this.ctx){
+    const room = ctx?.room;
+    if (!room) return null;
+    return room.entities[entityId] || this._getDoorProxyFromId(entityId, ctx);
+  }
+
   focusEntity(entityId, opts={openLoot:false, scrollLoot:false}){
     const ctx = this.ctx;
     if (!ctx) return;
 
-    const ent = ctx.room.entities[entityId];
+    const ent = this._getSelectableEntity(entityId, ctx);
     if (!ent){
       this._pendingFocusEntityId = entityId;
       return;
@@ -1537,6 +1580,11 @@ class App {
     this.renderCompass(root, ctx);
 
     const entities = Object.values(ctx.room.entities);
+    const doorObjects = Object.values(ctx.room.entities)
+      .filter(e => e.kind===Schema.EntityKind.EXIT)
+      .map(ex => this._getDoorProxyFromExit(ex, ctx))
+      .filter(Boolean);
+
     const groups = [
       { key:"players", label:"Players", kinds:[Schema.EntityKind.PLAYER] },
       { key:"enemies", label:"Enemies", kinds:[Schema.EntityKind.ENEMY] },
@@ -1545,21 +1593,18 @@ class App {
     ];
 
     for (const g of groups){
-      const items = entities
-        .filter(e => g.kinds.includes(e.kind))
-        .sort((a,b) => {
-          if (g.key === "loot"){
-            const ta = a.state?.createdAt ?? 0;
-            const tb = b.state?.createdAt ?? 0;
-            if (tb !== ta) return tb - ta;
-            return a.name.localeCompare(b.name);
-          }
-          if (a.kind===Schema.EntityKind.EXIT && b.kind===Schema.EntityKind.EXIT){
-            const order = { north:1, east:2, south:3, west:4 };
-            return (order[a.state.dir]||99) - (order[b.state.dir]||99);
-          }
+      const baseItems = entities.filter(e => g.kinds.includes(e.kind));
+      if (g.key === "objects") baseItems.push(...doorObjects);
+
+      const items = baseItems.sort((a,b) => {
+        if (g.key === "loot"){
+          const ta = a.state?.createdAt ?? 0;
+          const tb = b.state?.createdAt ?? 0;
+          if (tb !== ta) return tb - ta;
           return a.name.localeCompare(b.name);
-        });
+        }
+        return a.name.localeCompare(b.name);
+      });
 
       const d = document.createElement("details");
       d.className = "group";
@@ -1593,35 +1638,24 @@ class App {
           dot.className = "dot";
           if (ent.kind===Schema.EntityKind.PLAYER){ dot.style.borderColor="rgba(122,168,255,.55)"; dot.style.background="rgba(122,168,255,.20)"; }
           if (ent.kind===Schema.EntityKind.ENEMY){ dot.style.borderColor="rgba(255,90,106,.55)"; dot.style.background="rgba(255,90,106,.18)"; }
-          if (ent.kind===Schema.EntityKind.EXIT){ dot.style.borderColor="rgba(255,255,255,.22)"; }
           if (ent.kind===Schema.EntityKind.OBJECT){ dot.style.borderColor="rgba(255,204,102,.40)"; dot.style.background="rgba(255,204,102,.10)"; }
           if (ent.kind===Schema.EntityKind.LOOT){ dot.style.borderColor="rgba(61,220,151,.50)"; dot.style.background="rgba(61,220,151,.12)"; }
 
           const name = document.createElement("div");
           name.className = "name";
-          if (ent.kind === Schema.EntityKind.EXIT){
-            const dirLabel = titleCase(ent.state.dir);
-            name.textContent = `${dirLabel} (${ent.state.toRoomName || ent.state.toRoomId})`;
-          } else {
-            name.textContent = ent.name;
-          }
+          name.textContent = ent.name;
 
           left.appendChild(dot);
           left.appendChild(name);
 
           const tag = document.createElement("div");
           tag.className = "tag";
-          tag.textContent = ent.kind;
+          tag.textContent = ent._proxyType === "door" ? "door" : ent.kind;
 
           row.appendChild(left);
           row.appendChild(tag);
 
-          row.onclick = ()=>{
-            this.selectedEntityId = ent.id;
-            document.getElementById("selectedName").textContent = name.textContent;
-            this.renderGroups();
-            this.renderInspector();
-          };
+          row.onclick = ()=> this.focusEntity(ent.id);
 
           list.appendChild(row);
         }
@@ -1694,7 +1728,7 @@ class App {
       return;
     }
 
-    const ent = ctx.room.entities[this.selectedEntityId];
+    const ent = this._getSelectableEntity(this.selectedEntityId, ctx);
     if (!ent){
       document.getElementById("selKindPill").textContent="—";
       box.innerHTML = `<div class="muted">That entity no longer exists.</div>`;
@@ -1702,10 +1736,37 @@ class App {
     }
 
     const handler = Handlers[ent.kind];
-    document.getElementById("selKindPill").textContent = ent.kind;
+    document.getElementById("selKindPill").textContent = ent._proxyType === "door" ? "door" : ent.kind;
 
-    const vm = handler ? handler.inspect(ent, ctx) : null;
-    const actions = handler ? handler.actions(ent, ctx) : [];
+    let vm = handler ? handler.inspect(ent, ctx) : null;
+    let actions = handler ? handler.actions(ent, ctx) : [];
+
+    if (ent?._proxyType === "door"){
+      const inCombat = !!ctx.you?.engagedEnemyId;
+      const open = !!ent.state.open;
+      const locked = !!ent.state.locked;
+      const exists = !!ent.state.doorExists;
+
+      vm = {
+        title: ent.name,
+        kindLabel: "Door",
+        sections:[
+          { type:"kv", rows:[
+            ["Direction", titleCase(ent.state.dir)],
+            ["Destination", ent.state.destination],
+            ["Locked", exists ? (locked ? "Yes" : "No") : "Missing"],
+            ["Open", exists ? (open ? "Yes" : "No") : "Missing"]
+          ]},
+          { type:"text", text:"Unlock, then open to pass through this direction." }
+        ]
+      };
+
+      actions = [
+        { label:"Unlock", style:"", enabled: !inCombat && exists && locked, hint: inCombat?"In combat":(exists ? (locked?"Requires Rusty Key":"Not locked") : "Door missing"), intent:{ action:Schema.Action.UNLOCK_DOOR, targetId: ent.state.exitId } },
+        { label:"Open", style:"", enabled: !inCombat && exists && !locked && !open, hint: inCombat?"In combat":(exists ? (locked?"Locked":(open?"Already open":"")) : "Door missing"), intent:{ action:Schema.Action.OPEN_DOOR, targetId: ent.state.exitId } },
+        { label:"Close", style:"", enabled: !inCombat && exists && open, hint: inCombat?"In combat":(exists ? (open?"":"Already closed") : "Door missing"), intent:{ action:Schema.Action.CLOSE_DOOR, targetId: ent.state.exitId } }
+      ];
+    }
 
     const parts=[];
     parts.push(`<div class="card">`);
