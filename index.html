@@ -1586,16 +1586,15 @@ class App {
       .filter(Boolean);
 
     const groups = [
-      { key:"players", label:"Players", source:"entities", kinds:[Schema.EntityKind.PLAYER] },
-      { key:"enemies", label:"Enemies", source:"entities", kinds:[Schema.EntityKind.ENEMY] },
-      { key:"objects", label:"Objects", source:"mixed", kinds:[Schema.EntityKind.OBJECT] },
-      { key:"loot", label:"Loot", source:"entities", kinds:[Schema.EntityKind.LOOT] },
+      { key:"players", label:"Players", kinds:[Schema.EntityKind.PLAYER] },
+      { key:"enemies", label:"Enemies", kinds:[Schema.EntityKind.ENEMY] },
+      { key:"objects", label:"Objects", kinds:[Schema.EntityKind.OBJECT] },
+      { key:"loot", label:"Loot", kinds:[Schema.EntityKind.LOOT] },
     ];
 
     for (const g of groups){
-      const baseItems = g.source === "mixed"
-        ? entities.filter(e => g.kinds.includes(e.kind)).concat(doorObjects)
-        : entities.filter(e => g.kinds.includes(e.kind));
+      const baseItems = entities.filter(e => g.kinds.includes(e.kind));
+      if (g.key === "objects") baseItems.push(...doorObjects);
 
       const items = baseItems.sort((a,b) => {
         if (g.key === "loot"){
