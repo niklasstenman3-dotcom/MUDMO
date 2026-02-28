@@ -956,6 +956,9 @@ class App {
     this._lastConsumedEventIndex = 0;
     this._pendingFocusEntityId = null;
 
+    // ambient emitter state
+    this._lastAmbientEmitterKey = null;
+
     this.engine.connect(this.playerId, this.playerName);
 
     this._wire();
@@ -1331,6 +1334,66 @@ class App {
     }).join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
 
     if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
+    this.renderAmbientEmitter(roomEvents);
+  }
+
+  renderAmbientEmitter(roomEvents){
+    const emitterEl = document.getElementById("ambientEmitter");
+    if (!emitterEl) return;
+
+    const sounds = roomEvents
+      .filter(e => {
+        const txt = String(e?.text || "").toLowerCase();
+        return txt.includes("drip")
+          || txt.includes("wind")
+          || txt.includes("clang")
+          || txt.includes("rings")
+          || txt.includes("clink")
+          || txt.includes("shutters knock")
+          || txt.includes("chain taps")
+          || txt.includes("gravel shifts")
+          || txt.includes("twigs crack")
+          || txt.includes("wings burst")
+          || txt.includes("steel clashes");
+      })
+      .slice(-8);
+
+    if (!sounds.length){
+      emitterEl.textContent = "…";
+      emitterEl.classList.remove("is-ambient", "is-impact");
+      this._lastAmbientEmitterKey = null;
+      return;
+    }
+
+    const tokens = sounds.map(e => {
+      const raw = String(e.text || "").trim();
+      const low = raw.toLowerCase();
+      if (low.includes("drip")) return "drip";
+      if (low.includes("wind")) return "wind";
+      if (low.includes("clang") || low.includes("rings") || low.includes("steel clashes")) return "CLANG";
+      if (low.includes("clink")) return "clink";
+      if (low.includes("chain taps")) return "tap";
+      if (low.includes("gravel shifts")) return "shift";
+      if (low.includes("twigs crack")) return "crack";
+      if (low.includes("wings burst")) return "burst";
+      if (low.includes("shutters knock")) return "knock";
+      return raw.split(/[,.!?]/)[0].trim() || "...";
+    });
+
+    const phrase = tokens.join(" … ");
+    emitterEl.textContent = phrase;
+
+    const newest = sounds[sounds.length - 1];
+    const newestText = String(newest.text || "").toLowerCase();
+    const isImpact = newestText.includes("clang") || newestText.includes("rings") || newestText.includes("steel clashes") || newestText.includes("crack") || newestText.includes("burst");
+    const key = `${newest.id || newest.ts}-${isImpact ? "impact" : "ambient"}`;
+
+    if (this._lastAmbientEmitterKey !== key){
+      emitterEl.classList.remove("is-ambient", "is-impact");
+      void emitterEl.offsetWidth;
+      emitterEl.classList.add(isImpact ? "is-impact" : "is-ambient");
+      this._lastAmbientEmitterKey = key;
+    }
   }
 
   renderInspector(){

@@ -136,6 +136,41 @@
     .lg.condition{color:rgba(255,229,138,.98)}
     .lg.death{color:rgba(255,122,133,.98)}
 
+
+    .ambientEmitter{
+      min-height:24px;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:10px;
+      background:rgba(0,0,0,.20);
+      margin-top:6px;
+      padding:6px 10px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:rgba(181,194,211,.88);
+      display:flex;
+      align-items:center;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+    .ambientEmitter.is-ambient{
+      animation:ambientPulse 2800ms ease-in-out;
+    }
+    .ambientEmitter.is-impact{
+      animation:ambientFlash 420ms ease-out;
+    }
+
+    @keyframes ambientPulse{
+      0%{opacity:.24; letter-spacing:.02em; transform:translateX(-1px)}
+      32%{opacity:.98; letter-spacing:.045em; transform:translateX(0)}
+      100%{opacity:.42; letter-spacing:.015em; transform:translateX(1px)}
+    }
+
+    @keyframes ambientFlash{
+      0%{opacity:.16; transform:translateX(-3px) scale(0.98); color:rgba(255,180,132,.84)}
+      30%{opacity:1; transform:translateX(1px) scale(1.01); color:rgba(255,146,102,.98)}
+      100%{opacity:.26; transform:translateX(0) scale(1); color:rgba(181,194,211,.88)}
+    }
     /* Inspector */
     .card{
       background:var(--panel2);
