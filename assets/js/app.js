@@ -956,8 +956,6 @@ class App {
     this._lastConsumedEventIndex = 0;
     this._pendingFocusEntityId = null;
 
-    // ambient emitter state
-    this._lastAmbientEmitterKey = null;
 
     this.engine.connect(this.playerId, this.playerName);
 
@@ -1328,72 +1326,64 @@ class App {
       return txt;
     };
 
-    feedEl.innerHTML = roomEvents.map(e => {
+    const ambientState = this.renderAmbientStateLine(roomEvents, ctx.room, fmtTime(U.now()));
+
+    const entries = roomEvents.map(e => {
       const time = fmtTime(e.ts);
       return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
-    }).join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
-
-    if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
-    this.renderAmbientEmitter(roomEvents);
-  }
-
-  renderAmbientEmitter(roomEvents){
-    const emitterEl = document.getElementById("ambientEmitter");
-    if (!emitterEl) return;
-
-    const sounds = roomEvents
-      .filter(e => {
-        const txt = String(e?.text || "").toLowerCase();
-        return txt.includes("drip")
-          || txt.includes("wind")
-          || txt.includes("clang")
-          || txt.includes("rings")
-          || txt.includes("clink")
-          || txt.includes("shutters knock")
-          || txt.includes("chain taps")
-          || txt.includes("gravel shifts")
-          || txt.includes("twigs crack")
-          || txt.includes("wings burst")
-          || txt.includes("steel clashes");
-      })
-      .slice(-8);
-
-    if (!sounds.length){
-      emitterEl.textContent = "…";
-      emitterEl.classList.remove("is-ambient", "is-impact");
-      this._lastAmbientEmitterKey = null;
-      return;
-    }
-
-    const tokens = sounds.map(e => {
-      const raw = String(e.text || "").trim();
-      const low = raw.toLowerCase();
-      if (low.includes("drip")) return "drip";
-      if (low.includes("wind")) return "wind";
-      if (low.includes("clang") || low.includes("rings") || low.includes("steel clashes")) return "CLANG";
-      if (low.includes("clink")) return "clink";
-      if (low.includes("chain taps")) return "tap";
-      if (low.includes("gravel shifts")) return "shift";
-      if (low.includes("twigs crack")) return "crack";
-      if (low.includes("wings burst")) return "burst";
-      if (low.includes("shutters knock")) return "knock";
-      return raw.split(/[,.!?]/)[0].trim() || "...";
     });
 
-    const phrase = tokens.join(" … ");
-    emitterEl.textContent = phrase;
+    if (ambientState) entries.push(ambientState);
 
-    const newest = sounds[sounds.length - 1];
-    const newestText = String(newest.text || "").toLowerCase();
-    const isImpact = newestText.includes("clang") || newestText.includes("rings") || newestText.includes("steel clashes") || newestText.includes("crack") || newestText.includes("burst");
-    const key = `${newest.id || newest.ts}-${isImpact ? "impact" : "ambient"}`;
+    feedEl.innerHTML = entries.join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
 
-    if (this._lastAmbientEmitterKey !== key){
-      emitterEl.classList.remove("is-ambient", "is-impact");
-      void emitterEl.offsetWidth;
-      emitterEl.classList.add(isImpact ? "is-impact" : "is-ambient");
-      this._lastAmbientEmitterKey = key;
-    }
+    if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
+  }
+
+  renderAmbientStateLine(roomEvents, room, nowTimeLabel){
+    const recent = roomEvents.slice(-10);
+
+    const soundTokenFor = (text) => {
+      const low = String(text || "").toLowerCase();
+      if (low.includes("drip")) return "drip";
+      if (low.includes("wind")) return "wind";
+      if (low.includes("shift") || low.includes("skitter") || low.includes("rustle")) return "shift";
+      if (low.includes("clink") || low.includes("taps") || low.includes("knock")) return "clink";
+      if (low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes")) return "CLANG";
+      return null;
+    };
+
+    const steadyByRoom = {
+      catacombs: ["drip", "shift", "drip", "wind"],
+      road: ["wind", "shift", "wind", "wind"],
+      forest: ["wind", "shift", "wind", "shift"],
+      village: ["wind", "clink", "wind", "clink"]
+    };
+
+    const steady = steadyByRoom[room?.defId] || ["wind", "shift", "wind", "wind"];
+    const recentTokens = recent.map(e => soundTokenFor(e.text)).filter(Boolean);
+    const base = recentTokens.length ? recentTokens.slice(-3) : steady.slice(0, 3);
+
+    const impactIndex = [...recent].reverse().findIndex(e => {
+      const low = String(e?.text || "").toLowerCase();
+      return low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes");
+    });
+    const hasRecentImpact = impactIndex > -1 && impactIndex < 3;
+
+    const sequence = [...base];
+    while (sequence.length < 4) sequence.push(steady[sequence.length % steady.length]);
+    sequence.length = 4;
+    if (hasRecentImpact) sequence[2] = "CLANG";
+
+    const lastNarrative = recent.length ? String(recent[recent.length - 1].text || "").trim() : room?.flavor || "The room settles back into its steady rhythm.";
+    const explain = escapeHtml(lastNarrative.replace(/\s+/g, " ").slice(0, 110));
+
+    const renderedTokens = sequence.map((tok, idx) => {
+      const cls = tok === "CLANG" ? "rfStateToken rfStateToken--impact" : "rfStateToken rfStateToken--soft";
+      return `${idx > 0 ? '<span class="rfStateSep"> … </span>' : ''}<span class="${cls}">${escapeHtml(tok)}</span>`;
+    }).join("");
+
+    return `<div class="rfMsg rf-ambient-state"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText">${renderedTokens}<span class="rfStateExplain"> — ${explain}</span></div></div>`;
   }
 
   renderInspector(){
