@@ -19,7 +19,7 @@
     body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font); overflow:hidden;}
 
     .app{height:100vh; display:grid; grid-template-rows: 1fr 290px; gap:12px; padding:12px;}
-    .top{display:grid; grid-template-columns: 310px 1fr 390px; gap:12px; min-height:0;}
+    .top{display:grid; grid-template-columns: 310px 1fr 330px; gap:12px; min-height:0;}
     .bottom{display:grid; grid-template-columns: 310px 1fr 390px; gap:12px; min-height:0;}
 
     .panel{
@@ -80,6 +80,52 @@
     .badge .big{font-weight:1000; font-size:18px}
     .badge .small{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
+    .roomPanel .roomContent{display:flex; flex-direction:column; gap:10px; height:100%;}
+    .statusStrip{
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.25);
+      border-radius:10px;
+      padding:8px 10px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:rgba(255,255,255,.88);
+      letter-spacing:.01em;
+    }
+    .roomHeader{
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.14);
+      border-radius:12px;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .roomName{font-size:18px; font-weight:1000;}
+    .roomFlavor{font-size:12px; color:var(--muted); line-height:1.35;}
+    .roomSel{font-size:11px;}
+    .roomFeed{
+      flex:1;
+      min-height:120px;
+      overflow:auto;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      background:rgba(0,0,0,.16);
+      padding:8px 10px;
+      font-family:var(--mono);
+      font-size:12px;
+      line-height:1.25;
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .rfMsg{display:grid; grid-template-columns:54px 1fr; gap:10px;}
+    .rfTime{color:rgba(255,255,255,.45);}
+    .rfText{color:rgba(255,255,255,.78);}
+    .rf-system .rfText{color:rgba(220,220,220,.70);}
+    .rf-combat .rfText{color:rgba(255,146,102,.95);}
+    .rf-loot .rfText{color:rgba(110,226,156,.95);}
+    .rf-move .rfText{color:rgba(146,205,226,.95);}
+
     /* Inspector */
     .card{
       background:var(--panel2);
@@ -92,6 +138,9 @@
     }
     .h1{font-weight:1000; font-size:18px}
     .hint{font-size:12px; color:var(--muted); line-height:1.4}
+    .inspectorDetails summary{cursor:pointer; font-size:12px; color:var(--muted); font-weight:800;}
+    .inspectorDetails .kv{margin-top:8px;}
+    .tiny{font-size:11px; color:var(--muted);} 
     .kv{display:grid; grid-template-columns: 140px 1fr; gap:6px 10px; font-size:12px; color:rgba(255,255,255,.78)}
     .kv div:nth-child(odd){color:var(--muted)}
     .actions{display:flex; flex-wrap:wrap; gap:8px;}
@@ -184,6 +233,71 @@
       overflow:hidden;
     }
     .mapSvgWrap svg{ width:100%; height:100%; display:block; }
+
+    /* Compass directions */
+    .compassWrap{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      background:rgba(0,0,0,.14);
+      padding:10px;
+      margin-bottom:10px;
+    }
+    .compassTitle{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:8px;
+      font-weight:800;
+      letter-spacing:.02em;
+      text-transform:uppercase;
+    }
+    .compassGrid{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      grid-template-rows:repeat(3, 42px);
+      gap:8px;
+      align-items:center;
+      justify-items:stretch;
+    }
+    .compassBtn{
+      height:100%;
+      width:100%;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      font-weight:900;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+      cursor:pointer;
+    }
+    .compassBtn:hover{background:rgba(255,255,255,.08)}
+    .compassBtn:disabled{
+      cursor:not-allowed;
+      color:var(--muted);
+      background:rgba(255,255,255,.02);
+      border-color:rgba(255,255,255,.08);
+      opacity:.7;
+    }
+    .compassCenter{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(122,168,255,.40);
+      background:rgba(122,168,255,.10);
+      border-radius:10px;
+      font-weight:1000;
+      font-size:12px;
+      letter-spacing:.03em;
+      color:rgba(255,255,255,.95);
+      text-transform:uppercase;
+    }
+    .cellNorth{grid-column:2;grid-row:1;}
+    .cellWest{grid-column:1;grid-row:2;}
+    .cellEast{grid-column:3;grid-row:2;}
+    .cellSouth{grid-column:2;grid-row:3;}
+    .cellCenter{grid-column:2;grid-row:2;}
   </style>
 </head>
 
@@ -195,22 +309,16 @@
       <div class="content" id="entityGroups"></div>
     </div>
 
-    <div class="panel">
+    <div class="panel roomPanel">
       <div class="hdr"><div class="title">Room</div><div class="pill" id="youPill">—</div></div>
-      <div class="content" style="padding:10px;">
-        <div class="scene">
-          <div class="sceneBg" id="sceneBg"></div>
-          <div class="sceneOverlay">
-            <div class="badge">
-              <div class="big" id="roomTitle">—</div>
-              <div class="small" id="roomFlavor">—</div>
-            </div>
-            <div class="badge">
-              <div style="font-weight:1000">Selected</div>
-              <div class="small" id="selectedName">None</div>
-            </div>
-          </div>
+      <div class="content roomContent">
+        <div class="statusStrip" id="statusStrip">HP — | LVL — | XP —</div>
+        <div class="roomHeader">
+          <div class="roomName" id="roomTitle">—</div>
+          <div class="roomFlavor" id="roomFlavor">—</div>
+          <div class="roomSel muted">Selected: <span id="selectedName">None</span></div>
         </div>
+        <div class="roomFeed" id="roomFeed"></div>
       </div>
     </div>
 
@@ -229,7 +337,7 @@
     </div>
 
     <div class="panel stream">
-      <div class="hdr"><div class="title">Log</div><div class="pill">Personal</div></div>
+      <div class="hdr"><div class="title">Personal</div><div class="pill">You</div></div>
       <div class="streamBody" id="logStream"></div>
     </div>
 
@@ -315,7 +423,19 @@ const RoomDefs = Object.freeze({
       enemies: [
         {defId:"bandit", name:"Bandit", hp:50, atk:8, def:2, spd:3, maxAlive:1, respawnSec:8},
       ]
-    }
+    },
+    enterLines:[
+      "You return to the South Country Road; wind worries the dust at your boots.",
+      "The road stretches dimly ahead, and somewhere far off a cart wheel groans."
+    ],
+    ambientLines:[
+      "A loose sign chain taps softly in the wind.",
+      "Dry gravel shifts like something pacing just out of sight."
+    ],
+    crowdAmbientLines:[
+      "You hear other travelers' boots grinding over the road grit.",
+      "Muted voices drift past you, swallowed by the open night."
+    ]
   },
 
   catacombs: {
@@ -338,7 +458,19 @@ const RoomDefs = Object.freeze({
         {defId:"skeleton", name:"Skeleton", hp:40, atk:10, def:1, spd:3, maxAlive:2, respawnSec:10},
         {defId:"bandit", name:"Lost Bandit", hp:55, atk:9, def:2, spd:3, maxAlive:1, respawnSec:14}
       ]
-    }
+    },
+    enterLines:[
+      "You descend into the catacombs; cold drips count the seconds in the dark.",
+      "Stale air closes in as the catacomb stone drinks every footfall."
+    ],
+    ambientLines:[
+      "Water drips from unseen arches, slow and relentless.",
+      "A rusted chain clinks once, then silence swallows it."
+    ],
+    crowdAmbientLines:[
+      "More than one tread stirs dust here; echoes answer from the vaults.",
+      "You catch the scrape of someone else's steel against old stone."
+    ]
   },
 
   forest: {
@@ -358,7 +490,19 @@ const RoomDefs = Object.freeze({
       enemies: [
         {defId:"wolf", name:"Wolf", hp:45, atk:9, def:2, spd:5, maxAlive:2, respawnSec:9},
       ]
-    }
+    },
+    enterLines:[
+      "You slip onto the mossy path; branches whisper above like old gossip.",
+      "The forest closes around you, wet leaves hushing your steps."
+    ],
+    ambientLines:[
+      "Somewhere in the canopy, wings burst and settle again.",
+      "Twigs crack deeper in the trees, then all goes still."
+    ],
+    crowdAmbientLines:[
+      "You hear others brushing through fern and branch nearby.",
+      "A distant shout carries between trunks before fading."
+    ]
   },
 
   village: {
@@ -374,7 +518,19 @@ const RoomDefs = Object.freeze({
     staticObjects: [
       { objectType:"chest", id:"crate", name:"Supply Crate", locked:false }
     ],
-    spawn: { enemies: [] } // safe zone
+    spawn: { enemies: [] }, // safe zone
+    enterLines:[
+      "Lanternlight warms the Shire Village, and for a moment the road feels far away.",
+      "You step into village calm; low chatter and hearth smoke greet you."
+    ],
+    ambientLines:[
+      "A smith's hammer rings once from a nearby forge.",
+      "Wooden shutters knock softly as the evening breeze turns."
+    ],
+    crowdAmbientLines:[
+      "Villagers and travelers mingle, their talk rising and falling around you.",
+      "You catch overlapping footsteps and a laugh from just beyond the square."
+    ]
   }
 });
 
@@ -412,7 +568,8 @@ class GameEngine {
       doors: doorsState,
       entities:{}, playerIds:[],
       combats:{},
-      spawnMeta:{ lastSpawnAt:{} }
+      spawnMeta:{ lastSpawnAt:{} },
+      ambientMeta:{ lastAmbientAt:0, ambientIdx:0, crowdIdx:0, enterIdx:0 }
     };
   }
 
@@ -479,6 +636,28 @@ class GameEngine {
     };
   }
 
+  _nextFrom(list, room, key){
+    const arr = Array.isArray(list) ? list : [];
+    if (!arr.length) return null;
+    const meta = room.ambientMeta || (room.ambientMeta = { lastAmbientAt:0, ambientIdx:0, crowdIdx:0, enterIdx:0 });
+    const idxKey = key + "Idx";
+    const idx = meta[idxKey] || 0;
+    meta[idxKey] = (idx + 1) % arr.length;
+    return arr[idx % arr.length];
+  }
+
+  _emitRoomAmbient(room){
+    if (!room || !room.playerIds?.length) return;
+    const def = this._getDef(room.defId);
+    const hasOthers = room.playerIds.length > 1;
+    const line = hasOthers
+      ? this._nextFrom(def.crowdAmbientLines, room, "crowd") || this._nextFrom(def.ambientLines, room, "ambient")
+      : this._nextFrom(def.ambientLines, room, "ambient");
+    if (!line) return;
+    room.ambientMeta.lastAmbientAt = U.now();
+    this._emitEvent(Schema.EventKind.SYSTEM, line, null, { roomId: room.id }, "room");
+  }
+
   _ensureSpawns(room, initial){
     const def = this._getDef(room.defId);
     const t = U.now();
@@ -508,6 +687,7 @@ class GameEngine {
       id, name,
       roomId:"room_1",
       hp:60, hpMax:60,
+      lvl:1, xp:0, xpNext:200,
       stats:{atk:10, def:4, spd:4},
       engagedEnemyId:null,
       inventory:[],
@@ -553,6 +733,10 @@ class GameEngine {
     };
 
     this._ensureSpawns(room, false);
+
+    const def = this._getDef(room.defId);
+    const enterLine = this._nextFrom(def.enterLines, room, "enter");
+    if (enterLine) this._emitEvent(Schema.EventKind.SYSTEM, enterLine, playerId, { actorPlayerId: playerId, roomId: room.id }, "room");
   }
 
   _roomOf(pid){
@@ -595,8 +779,15 @@ class GameEngine {
     this._broadcastState();
   }
 
-  _emitEvent(kind, text, toPlayerId=null, payload=null){
-    this.onSend({ type:Schema.MsgType.EVENT, kind, text, ts:U.now(), toPlayerId, payload });
+  _emitEvent(kind, text, toPlayerId=null, payload=null, audience="room"){
+    const p = { ...(payload || {}) };
+    if (!p.roomId && p.actorPlayerId && this.state.players[p.actorPlayerId]){
+      p.roomId = this.state.players[p.actorPlayerId].roomId;
+    }
+    if (!p.roomId && p.targetPlayerId && this.state.players[p.targetPlayerId]){
+      p.roomId = this.state.players[p.targetPlayerId].roomId;
+    }
+    this.onSend({ type:Schema.MsgType.EVENT, kind, text, ts:U.now(), toPlayerId, payload:p, audience });
   }
   _broadcastState(){
     this.onSend({ type:Schema.MsgType.STATE, state: JSON.parse(JSON.stringify(this.state)) });
@@ -642,7 +833,7 @@ class GameEngine {
     combat.engaged[pid] = true;
     combat.turn.turnPid = pid; // MVP: single player “turn owner”
 
-    this._emitEvent(Schema.EventKind.SYSTEM, `Engaged ${e.name}.`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
+    this._emitEvent(Schema.EventKind.SYSTEM, `You engage the ${e.name}.`, null, { actorPlayerId: pid, roomId: room.id, enemyId }, "room");
   }
 
   _disengage(pid){
@@ -714,18 +905,37 @@ class GameEngine {
     const a = combat.actions?.[actorPid] || { type:"attack", targetId: enemyId };
 
     // log your action first (personal)
+    const prevEnemyHp = enemy.state.hp;
+    const emitEnemyStateNarrative = (beforeHp, afterHp) => {
+      const max = enemy.state.hpMax || 1;
+      const beforePct = (beforeHp / max) * 100;
+      const afterPct = (afterHp / max) * 100;
+      const states = [
+        { t:75, msg:`${enemy.name} is faltering.` },
+        { t:40, msg:`${enemy.name} is badly wounded.` },
+        { t:15, msg:`${enemy.name} is near death.` },
+      ];
+      for (const st of states){
+        if (beforePct > st.t && afterPct <= st.t && afterHp > 0){
+          this._emitEvent(Schema.EventKind.SYSTEM, st.msg, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+        }
+      }
+    };
+
     if (a.type === "defend"){
       p._defending = true;
-      this._emitEvent(Schema.EventKind.COMBAT, `${p.name} defends.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id });
+      this._emitEvent(Schema.EventKind.SYSTEM, `You brace for impact.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id }, "personal");
     } else {
       let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def);
-      if (a.type === "skill"){
-        dmg = Math.round(dmg * 1.8);
-        this._emitEvent(Schema.EventKind.COMBAT, `${p.name} uses Power Strike on ${enemy.name} (${dmg}).`, null, { actorPlayerId: p.id, roomId: room.id, enemyId });
-      } else {
-        this._emitEvent(Schema.EventKind.COMBAT, `${p.name} hits ${enemy.name} (${dmg}).`, null, { actorPlayerId: p.id, roomId: room.id, enemyId });
-      }
+      if (a.type === "skill") dmg = Math.round(dmg * 1.8);
       enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
+
+      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+      this._emitEvent(Schema.EventKind.COMBAT, `You hit ${enemy.name} for ${dmg} (${enemy.state.hp} HP left).`, null, {
+        actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId
+      }, "personal");
+
+      emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
     }
 
     delete combat.actions[actorPid];
@@ -735,15 +945,26 @@ class GameEngine {
       const loot = this._spawnLoot(`${enemy.name} Coin`, "common");
       room.entities[loot.id] = loot;
 
-      this._emitEvent(Schema.EventKind.COMBAT, `${enemy.name} is defeated. Loot: ${loot.name}.`, null, {
+      this._emitEvent(Schema.EventKind.SYSTEM, `The ${enemy.name} collapses.`, null, {
         roomId: room.id, enemyId, focusEntityId: loot.id
-      });
+      }, "room");
+      this._emitEvent(Schema.EventKind.SYSTEM, `You defeated ${enemy.name}. Loot dropped: ${loot.name}.`, null, {
+        actorPlayerId: actorPid, targetPlayerId: actorPid, roomId: room.id, enemyId, focusEntityId: loot.id
+      }, "personal");
 
       for (const pid of engagedIds){
         const pp = this.state.players[pid];
         if (!pp) continue;
         pp._defending = false;
         pp.engagedEnemyId = null;
+        const gainedXp = 25;
+        pp.xp = (pp.xp || 0) + gainedXp;
+        while (pp.xp >= (pp.xpNext || 200)){
+          pp.xp -= pp.xpNext;
+          pp.lvl = (pp.lvl || 1) + 1;
+          pp.xpNext = Math.round(pp.xpNext * 1.25);
+          this._emitEvent(Schema.EventKind.SYSTEM, `${pp.name} reached level ${pp.lvl}.`, null, { actorPlayerId: pp.id, roomId: room.id });
+        }
         delete combat.actions[pid];
       }
 
@@ -770,9 +991,12 @@ class GameEngine {
 
       pl.hp = Math.max(0, pl.hp - edmg);
 
-      this._emitEvent(Schema.EventKind.COMBAT, `${en.name} strikes ${pl.name} (${edmg}).`, null, {
+      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, {
         targetPlayerId: pl.id, roomId: r.id, enemyId
-      });
+      }, "room");
+      this._emitEvent(Schema.EventKind.COMBAT, `${en.name} hits You for ${edmg} (${pl.hp} HP left).`, null, {
+        targetPlayerId: pl.id, roomId: r.id, enemyId
+      }, "personal");
 
       pl._defending = false;
 
@@ -1026,6 +1250,11 @@ class GameEngine {
       if (this._ensureSpawns(room, false)) dirty = true;
 
       const now = U.now();
+      const lastAmb = room.ambientMeta?.lastAmbientAt || 0;
+      if (room.playerIds?.length && (now - lastAmb) >= 4500){
+        this._emitRoomAmbient(room);
+      }
+
       for (const ent of Object.values(room.entities)){
         if (ent.kind === Schema.EntityKind.LOOT && ent.state?.expiresAt && now > ent.state.expiresAt){
           delete room.entities[ent.id];
@@ -1347,7 +1576,7 @@ class App {
     this.selectedEntityId = null;
 
     // defaults: directions + enemies open; loot open because it's important to see drops quickly
-    this.groupOpen = { directions:true, players:false, enemies:true, objects:false, loot:true };
+    this.groupOpen = { directions:true, players:false, enemies:true, objects:true, loot:true };
 
     // loot focus plumbing
     this._lastConsumedEventIndex = 0;
@@ -1403,11 +1632,54 @@ class App {
     }
   }
 
+  _doorProxyIdForExitId(exitId){ return `doorProxy_${exitId}`; }
+
+  _getDoorProxyFromId(id, ctx=this.ctx){
+    if (!id || !String(id).startsWith("doorProxy_")) return null;
+    const room = ctx?.room;
+    if (!room) return null;
+    const exitId = String(id).slice("doorProxy_".length);
+    const ex = room.entities[exitId];
+    if (!ex || ex.kind !== Schema.EntityKind.EXIT) return null;
+    const gate = ex.state?.gate || { type:"open" };
+    if (gate.type !== "door" || !gate.doorId) return null;
+    const door = room.doors?.[gate.doorId] || null;
+    return {
+      id,
+      kind: Schema.EntityKind.OBJECT,
+      name: `Door (${titleCase(ex.state.dir)})`,
+      _proxyType: "door",
+      state: {
+        objectType: "door",
+        dir: ex.state.dir,
+        exitId: ex.id,
+        doorId: gate.doorId,
+        doorExists: !!door,
+        locked: !!door?.locked,
+        open: !!door?.open,
+        destination: ex.state.toRoomName || ex.state.toRoomId || "Unknown"
+      }
+    };
+  }
+
+  _getDoorProxyFromExit(ex, ctx=this.ctx){
+    if (!ex || ex.kind !== Schema.EntityKind.EXIT) return null;
+    const gate = ex.state?.gate || { type:"open" };
+    if (gate.type !== "door" || !gate.doorId) return null;
+    return this._getDoorProxyFromId(this._doorProxyIdForExitId(ex.id), ctx);
+  }
+
+  _getSelectableEntity(entityId, ctx=this.ctx){
+    const room = ctx?.room;
+    if (!room) return null;
+    return room.entities[entityId] || this._getDoorProxyFromId(entityId, ctx);
+  }
+
   focusEntity(entityId, opts={openLoot:false, scrollLoot:false}){
     const ctx = this.ctx;
     if (!ctx) return;
 
-    const ent = ctx.room.entities[entityId];
+    const ent = this._getSelectableEntity(entityId, ctx);
     if (!ent){
       this._pendingFocusEntityId = entityId;
       return;
@@ -1416,6 +1688,7 @@ class App {
     this.selectedEntityId = entityId;
 
     if (opts.openLoot && ent.kind === Schema.EntityKind.LOOT) this.groupOpen.loot = true;
+    if (ent?._proxyType === "door") this.groupOpen.objects = true;
 
     const label = ent.kind === Schema.EntityKind.EXIT
       ? `${titleCase(ent.state.dir)} (${ent.state.toRoomName || ent.state.toRoomId})`
@@ -1450,13 +1723,7 @@ class App {
     document.getElementById("roomTitle").textContent = ctx.room.name;
     document.getElementById("roomFlavor").textContent = ctx.room.flavor;
 
-    // set theme background
-    const theme = ctx.room.theme || "road";
-    const bg = ThemeBg[theme] || ThemeBg.road;
-    const bgEl = document.getElementById("sceneBg");
-    bgEl.style.backgroundImage = bg;
-    bgEl.style.filter = theme==="catacombs" ? "saturate(.92) contrast(1.07)" : "saturate(1.05)";
-
+    this.renderRoomPanel();
     this.renderGroups();
     this.renderInspector();
     this.renderStreams();
@@ -1467,13 +1734,17 @@ class App {
   renderGroups(){
     const ctx = this.ctx;
     const root = document.getElementById("entityGroups");
-    root.innerHTML = `<div class="muted" style="font-size:12px; margin-bottom:10px;">
-      Directions show where you move to. Doors are gates on directions (not separate entities).
-    </div>`;
+    root.innerHTML = "";
+
+    this.renderCompass(root, ctx);
 
     const entities = Object.values(ctx.room.entities);
+    const doorObjects = Object.values(ctx.room.entities)
+      .filter(e => e.kind===Schema.EntityKind.EXIT)
+      .map(ex => this._getDoorProxyFromExit(ex, ctx))
+      .filter(Boolean);
+
     const groups = [
-      { key:"directions", label:"Directions", kinds:[Schema.EntityKind.EXIT] },
       { key:"players", label:"Players", kinds:[Schema.EntityKind.PLAYER] },
       { key:"enemies", label:"Enemies", kinds:[Schema.EntityKind.ENEMY] },
       { key:"objects", label:"Objects", kinds:[Schema.EntityKind.OBJECT] },
@@ -1481,21 +1752,23 @@ class App {
     ];
 
     for (const g of groups){
-      const items = entities
-        .filter(e => g.kinds.includes(e.kind))
-        .sort((a,b) => {
-          if (g.key === "loot"){
-            const ta = a.state?.createdAt ?? 0;
-            const tb = b.state?.createdAt ?? 0;
-            if (tb !== ta) return tb - ta;
-            return a.name.localeCompare(b.name);
-          }
-          if (a.kind===Schema.EntityKind.EXIT && b.kind===Schema.EntityKind.EXIT){
-            const order = { north:1, east:2, south:3, west:4 };
-            return (order[a.state.dir]||99) - (order[b.state.dir]||99);
-          }
+      const baseItems = entities.filter(e => g.kinds.includes(e.kind));
+      if (g.key === "objects") baseItems.push(...doorObjects);
+
+      const items = baseItems.sort((a,b) => {
+        if (g.key === "loot"){
+          const ta = a.state?.createdAt ?? 0;
+          const tb = b.state?.createdAt ?? 0;
+          if (tb !== ta) return tb - ta;
           return a.name.localeCompare(b.name);
-        });
+        }
+        if (g.key === "objects"){
+          const ad = a._proxyType === "door" ? 0 : 1;
+          const bd = b._proxyType === "door" ? 0 : 1;
+          if (ad !== bd) return ad - bd;
+        }
+        return a.name.localeCompare(b.name);
+      });
 
       const d = document.createElement("details");
       d.className = "group";
@@ -1529,35 +1802,24 @@ class App {
           dot.className = "dot";
           if (ent.kind===Schema.EntityKind.PLAYER){ dot.style.borderColor="rgba(122,168,255,.55)"; dot.style.background="rgba(122,168,255,.20)"; }
           if (ent.kind===Schema.EntityKind.ENEMY){ dot.style.borderColor="rgba(255,90,106,.55)"; dot.style.background="rgba(255,90,106,.18)"; }
-          if (ent.kind===Schema.EntityKind.EXIT){ dot.style.borderColor="rgba(255,255,255,.22)"; }
           if (ent.kind===Schema.EntityKind.OBJECT){ dot.style.borderColor="rgba(255,204,102,.40)"; dot.style.background="rgba(255,204,102,.10)"; }
           if (ent.kind===Schema.EntityKind.LOOT){ dot.style.borderColor="rgba(61,220,151,.50)"; dot.style.background="rgba(61,220,151,.12)"; }
 
           const name = document.createElement("div");
           name.className = "name";
-          if (ent.kind === Schema.EntityKind.EXIT){
-            const dirLabel = titleCase(ent.state.dir);
-            name.textContent = `${dirLabel} (${ent.state.toRoomName || ent.state.toRoomId})`;
-          } else {
-            name.textContent = ent.name;
-          }
+          name.textContent = ent.name;
 
           left.appendChild(dot);
           left.appendChild(name);
 
           const tag = document.createElement("div");
           tag.className = "tag";
-          tag.textContent = ent.kind;
+          tag.textContent = ent._proxyType === "door" ? "door" : ent.kind;
 
           row.appendChild(left);
           row.appendChild(tag);
 
-          row.onclick = ()=>{
-            this.selectedEntityId = ent.id;
-            document.getElementById("selectedName").textContent = name.textContent;
-            this.renderGroups();
-            this.renderInspector();
-          };
+          row.onclick = ()=> this.focusEntity(ent.id);
 
           list.appendChild(row);
         }
@@ -1566,6 +1828,122 @@ class App {
       d.appendChild(list);
       root.appendChild(d);
     }
+  }
+
+  renderCompass(root, ctx){
+    const exits = Object.values(ctx.room.entities).filter(e => e.kind === Schema.EntityKind.EXIT);
+    const exitsByDir = {};
+    for (const ex of exits){
+      exitsByDir[ex.state?.dir] = ex;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "compassWrap";
+
+    const title = document.createElement("div");
+    title.className = "compassTitle";
+    title.textContent = "Directions";
+    wrap.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "compassGrid";
+
+    const makeBtn = (dir, label, cellClass) => {
+      const ex = exitsByDir[dir] || null;
+      const btn = document.createElement("button");
+      btn.className = `compassBtn ${cellClass}`;
+      btn.type = "button";
+      btn.textContent = label;
+      btn.disabled = !ex;
+      if (ex){
+        btn.title = ex.state.toRoomName || ex.state.toRoomId || titleCase(dir);
+        btn.addEventListener("click", ()=>{
+          const gate = ex.state?.gate || { type:"open" };
+          if (gate.type === "door"){
+            const door = ctx.room.doors?.[gate.doorId] || null;
+            const blocked = !door || door.locked || !door.open;
+            if (blocked){
+              const doorProxy = this._getDoorProxyFromExit(ex, ctx);
+              if (doorProxy) this.focusEntity(doorProxy.id);
+              return;
+            }
+          }
+          this.store.dispatch(Schema.Action.TRAVEL, ex.id, null);
+        });
+      } else {
+        btn.title = "No exit";
+      }
+      return btn;
+    };
+
+    grid.appendChild(makeBtn("north", "North", "cellNorth"));
+    grid.appendChild(makeBtn("west", "West", "cellWest"));
+
+    const center = document.createElement("div");
+    center.className = "compassCenter cellCenter";
+    center.textContent = "You";
+    grid.appendChild(center);
+
+    grid.appendChild(makeBtn("east", "East", "cellEast"));
+    grid.appendChild(makeBtn("south", "South", "cellSouth"));
+
+    wrap.appendChild(grid);
+    root.appendChild(wrap);
+  }
+
+  renderRoomPanel(){
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const you = ctx.you || {};
+    const xp = you.xp ?? 0;
+    const xpNext = you.xpNext ?? 200;
+    const lvl = you.lvl ?? 1;
+    document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | LVL ${lvl} | XP ${xp}/${xpNext}`;
+    document.getElementById("roomTitle").textContent = ctx.room.name;
+    document.getElementById("roomFlavor").textContent = ctx.room.flavor;
+
+    const feedEl = document.getElementById("roomFeed");
+    const events = this.store.events.slice(-1200);
+    const roomId = ctx.room.id;
+    const roomEvents = events.filter(e => {
+      if (e.kind !== Schema.EventKind.SYSTEM && e.kind !== Schema.EventKind.COMBAT) return false;
+      const aud = e.audience || "both";
+      if (aud !== "room" && aud !== "both") return false;
+      return e.payload?.roomId === roomId;
+    }).slice(-200);
+
+    const wasAtBottom = (feedEl.scrollTop + feedEl.clientHeight) >= (feedEl.scrollHeight - 8);
+    const fmtTime = (ms) => {
+      const d = new Date(ms);
+      return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    };
+    const classify = (e) => {
+      const t = (e.text || "").toLowerCase();
+      if (e.kind === Schema.EventKind.COMBAT) return "rf-combat";
+      if (t.includes("loot") || t.includes("picked up") || t.includes("opened chest") || t.includes("unlocked")) return "rf-loot";
+      if (t.startsWith("moved ") || t.includes("door is locked") || t.includes("door is closed") || t.includes("opened the") || t.includes("closed the")) return "rf-move";
+      return "rf-system";
+    };
+
+    const toRoomNarrative = (e) => {
+      const txt = String(e.text || "");
+      if (e.kind === Schema.EventKind.COMBAT){
+        if (/\bhits\b/i.test(txt) || /\bstrikes\b/i.test(txt)) return "Steel clashes in the dust.";
+      }
+      const mEngaged = txt.match(/^Engaged\s+(.+)\.$/i);
+      if (mEngaged) return `You engage the ${mEngaged[1]}.`;
+      const mDefeated = txt.match(/^(.+)\s+is defeated\./i);
+      if (mDefeated) return `The ${mDefeated[1]} collapses.`;
+      return txt;
+    };
+
+    feedEl.innerHTML = roomEvents.map(e => {
+      const time = fmtTime(e.ts);
+      return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
+    }).join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
+
+    if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
   }
 
   renderInspector(){
@@ -1579,7 +1957,7 @@ class App {
       return;
     }
 
-    const ent = ctx.room.entities[this.selectedEntityId];
+    const ent = this._getSelectableEntity(this.selectedEntityId, ctx);
     if (!ent){
       document.getElementById("selKindPill").textContent="—";
       box.innerHTML = `<div class="muted">That entity no longer exists.</div>`;
@@ -1587,32 +1965,56 @@ class App {
     }
 
     const handler = Handlers[ent.kind];
-    document.getElementById("selKindPill").textContent = ent.kind;
+    document.getElementById("selKindPill").textContent = ent._proxyType === "door" ? "door" : ent.kind;
 
-    const vm = handler ? handler.inspect(ent, ctx) : null;
-    const actions = handler ? handler.actions(ent, ctx) : [];
+    let vm = handler ? handler.inspect(ent, ctx) : null;
+    let actions = handler ? handler.actions(ent, ctx) : [];
+
+    if (ent?._proxyType === "door"){
+      const inCombat = !!ctx.you?.engagedEnemyId;
+      const open = !!ent.state.open;
+      const locked = !!ent.state.locked;
+      const exists = !!ent.state.doorExists;
+
+      vm = {
+        title: ent.name,
+        kindLabel: "Door",
+        sections:[
+          { type:"kv", rows:[
+            ["Direction", titleCase(ent.state.dir)],
+            ["Destination", ent.state.destination],
+            ["Locked", exists ? (locked ? "Yes" : "No") : "Missing"],
+            ["Open", exists ? (open ? "Yes" : "No") : "Missing"]
+          ]},
+          { type:"text", text:"Unlock, then open to pass through this direction." }
+        ]
+      };
+
+      actions = [
+        { label:"Unlock", style:"", enabled: !inCombat && exists && locked, hint: inCombat?"In combat":(exists ? (locked?"Requires Rusty Key":"Not locked") : "Door missing"), intent:{ action:Schema.Action.UNLOCK_DOOR, targetId: ent.state.exitId } },
+        { label:"Open", style:"", enabled: !inCombat && exists && !locked && !open, hint: inCombat?"In combat":(exists ? (locked?"Locked":(open?"Already open":"")) : "Door missing"), intent:{ action:Schema.Action.OPEN_DOOR, targetId: ent.state.exitId } },
+        { label:"Close", style:"", enabled: !inCombat && exists && open, hint: inCombat?"In combat":(exists ? (open?"":"Already closed") : "Door missing"), intent:{ action:Schema.Action.CLOSE_DOOR, targetId: ent.state.exitId } }
+      ];
+    }
+
+    const sections = vm?.sections || [];
+    const hpSec = sections.find(sec => sec.type === "hp");
+    const kvSecs = sections.filter(sec => sec.type === "kv");
+    const textSecs = sections.filter(sec => sec.type === "text");
 
     const parts=[];
     parts.push(`<div class="card">`);
     parts.push(`<div class="h1">${escapeHtml(vm?.title ?? ent.name)}</div>`);
-    parts.push(`<div class="muted" style="font-size:12px">${escapeHtml(vm?.kindLabel ?? ent.kind)}</div>`);
+    parts.push(`<div class="tiny">${escapeHtml(vm?.kindLabel ?? ent.kind)}</div>`);
 
-    for (const sec of (vm?.sections||[])){
-      if (sec.type==="text"){
-        parts.push(`<div class="hint">${escapeHtml(sec.text)}</div>`);
-      } else if (sec.type==="kv"){
-        parts.push(`<div class="kv">` + sec.rows.map(([k,v])=>`<div>${escapeHtml(k)}</div><div>${escapeHtml(v)}</div>`).join("") + `</div>`);
-      } else if (sec.type==="hp"){
-        const pct = sec.hpMax ? Math.round((sec.hp/sec.hpMax)*100) : 0;
-        parts.push(`<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted)"><span>HP</span><span>${escapeHtml(U.fmtHp(sec.hp, sec.hpMax))}</span></div>`);
-        parts.push(`<div class="bar bad"><div style="width:${pct}%;"></div></div>`);
-      }
+    if (hpSec){
+      const pct = hpSec.hpMax ? Math.round((hpSec.hp/hpSec.hpMax)*100) : 0;
+      parts.push(`<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted)"><span>HP</span><span>${escapeHtml(U.fmtHp(hpSec.hp, hpSec.hpMax))}</span></div>`);
+      parts.push(`<div class="bar bad"><div style="width:${pct}%;"></div></div>`);
     }
 
-    parts.push(`<div class="hr"></div>`);
     parts.push(`<div style="font-weight:1000">Actions</div>`);
     parts.push(`<div class="actions">`);
-
     if (!actions.length){
       parts.push(`<span class="muted" style="font-size:12px">No actions available.</span>`);
     } else {
@@ -1625,8 +2027,18 @@ class App {
         parts.push(`<button class="${cls.join(" ")}" data-act="${i}" ${disabled} title="${escapeAttr(title)}">${escapeHtml(a.label)}</button>`);
       }
     }
+    parts.push(`</div>`);
 
-    parts.push(`</div></div>`);
+    parts.push(`<details class="inspectorDetails"><summary>Details</summary>`);
+    for (const sec of kvSecs){
+      parts.push(`<div class="kv">` + sec.rows.map(([k,v])=>`<div>${escapeHtml(k)}</div><div>${escapeHtml(v)}</div>`).join("") + `</div>`);
+    }
+    for (const sec of textSecs){
+      parts.push(`<div class="hint">${escapeHtml(sec.text)}</div>`);
+    }
+    parts.push(`</details>`);
+    parts.push(`</div>`);
+
     box.innerHTML = parts.join("");
 
     box.querySelectorAll("button[data-act]").forEach(btn=>{
@@ -1647,12 +2059,13 @@ class App {
 
     const chats = events.filter(e => e.kind === Schema.EventKind.CHAT);
 
-    // personal: actor or target is you (system + combat)
     const logs = events.filter(e => {
       if (e.kind !== Schema.EventKind.SYSTEM && e.kind !== Schema.EventKind.COMBAT) return false;
+      const aud = e.audience || "both";
+      if (aud !== "personal" && aud !== "both") return false;
       const a = e.payload?.actorPlayerId;
       const t = e.payload?.targetPlayerId;
-      return (a === this.playerId) || (t === this.playerId) || (!a && !t);
+      return (a === this.playerId) || (t === this.playerId);
     });
 
     const logWasAtBottom = (logEl.scrollTop + logEl.clientHeight) >= (logEl.scrollHeight - 8);
@@ -1667,9 +2080,10 @@ class App {
 
     logEl.innerHTML = logs.map(e => {
       const time = fmtTime(e.ts);
+      const who = e.payload?.actorPlayerId===this.playerId ? "You" : "Them";
       return `<div class="msg">
         <div class="time">${escapeHtml(time)}</div>
-        <div class="who">You</div>
+        <div class="who">${escapeHtml(who)}</div>
         <div class="text">${escapeHtml(e.text)}</div>
       </div>`;
     }).join("");
