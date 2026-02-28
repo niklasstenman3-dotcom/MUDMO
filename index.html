@@ -704,12 +704,15 @@ class GameEngine {
     this._broadcastState();
   }
 
-  _emitEvent(kind, text, toPlayerId=null, payload=null){
+  _emitEvent(kind, text, toPlayerId=null, payload=null, audience="room"){
     const p = { ...(payload || {}) };
     if (!p.roomId && p.actorPlayerId && this.state.players[p.actorPlayerId]){
       p.roomId = this.state.players[p.actorPlayerId].roomId;
     }
-    this.onSend({ type:Schema.MsgType.EVENT, kind, text, ts:U.now(), toPlayerId, payload:p });
+    if (!p.roomId && p.targetPlayerId && this.state.players[p.targetPlayerId]){
+      p.roomId = this.state.players[p.targetPlayerId].roomId;
+    }
+    this.onSend({ type:Schema.MsgType.EVENT, kind, text, ts:U.now(), toPlayerId, payload:p, audience });
   }
   _broadcastState(){
     this.onSend({ type:Schema.MsgType.STATE, state: JSON.parse(JSON.stringify(this.state)) });
@@ -755,7 +758,7 @@ class GameEngine {
     combat.engaged[pid] = true;
     combat.turn.turnPid = pid; // MVP: single player “turn owner”
 
-    this._emitEvent(Schema.EventKind.SYSTEM, `Engaged ${e.name}.`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
+    this._emitEvent(Schema.EventKind.SYSTEM, `You engage the ${e.name}.`, null, { actorPlayerId: pid, roomId: room.id, enemyId }, "room");
   }
 
   _disengage(pid){
@@ -827,18 +830,37 @@ class GameEngine {
     const a = combat.actions?.[actorPid] || { type:"attack", targetId: enemyId };
 
     // log your action first (personal)
+    const prevEnemyHp = enemy.state.hp;
+    const emitEnemyStateNarrative = (beforeHp, afterHp) => {
+      const max = enemy.state.hpMax || 1;
+      const beforePct = (beforeHp / max) * 100;
+      const afterPct = (afterHp / max) * 100;
+      const states = [
+        { t:75, msg:`${enemy.name} is faltering.` },
+        { t:40, msg:`${enemy.name} is badly wounded.` },
+        { t:15, msg:`${enemy.name} is near death.` },
+      ];
+      for (const st of states){
+        if (beforePct > st.t && afterPct <= st.t && afterHp > 0){
+          this._emitEvent(Schema.EventKind.SYSTEM, st.msg, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+        }
+      }
+    };
+
     if (a.type === "defend"){
       p._defending = true;
-      this._emitEvent(Schema.EventKind.COMBAT, `${p.name} defends.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id });
+      this._emitEvent(Schema.EventKind.SYSTEM, `You brace for impact.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id }, "personal");
     } else {
       let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def);
-      if (a.type === "skill"){
-        dmg = Math.round(dmg * 1.8);
-        this._emitEvent(Schema.EventKind.COMBAT, `${p.name} uses Power Strike on ${enemy.name} (${dmg}).`, null, { actorPlayerId: p.id, roomId: room.id, enemyId });
-      } else {
-        this._emitEvent(Schema.EventKind.COMBAT, `${p.name} hits ${enemy.name} (${dmg}).`, null, { actorPlayerId: p.id, roomId: room.id, enemyId });
-      }
+      if (a.type === "skill") dmg = Math.round(dmg * 1.8);
       enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
+
+      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+      this._emitEvent(Schema.EventKind.COMBAT, `You hit ${enemy.name} for ${dmg} (${enemy.state.hp} HP left).`, null, {
+        actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId
+      }, "personal");
+
+      emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
     }
 
     delete combat.actions[actorPid];
@@ -848,9 +870,12 @@ class GameEngine {
       const loot = this._spawnLoot(`${enemy.name} Coin`, "common");
       room.entities[loot.id] = loot;
 
-      this._emitEvent(Schema.EventKind.COMBAT, `${enemy.name} is defeated. Loot: ${loot.name}.`, null, {
+      this._emitEvent(Schema.EventKind.SYSTEM, `The ${enemy.name} collapses.`, null, {
         roomId: room.id, enemyId, focusEntityId: loot.id
-      });
+      }, "room");
+      this._emitEvent(Schema.EventKind.SYSTEM, `You defeated ${enemy.name}. Loot dropped: ${loot.name}.`, null, {
+        actorPlayerId: actorPid, targetPlayerId: actorPid, roomId: room.id, enemyId, focusEntityId: loot.id
+      }, "personal");
 
       for (const pid of engagedIds){
         const pp = this.state.players[pid];
@@ -891,9 +916,12 @@ class GameEngine {
 
       pl.hp = Math.max(0, pl.hp - edmg);
 
-      this._emitEvent(Schema.EventKind.COMBAT, `${en.name} strikes ${pl.name} (${edmg}).`, null, {
+      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, {
         targetPlayerId: pl.id, roomId: r.id, enemyId
-      });
+      }, "room");
+      this._emitEvent(Schema.EventKind.COMBAT, `${en.name} hits You for ${edmg} (${pl.hp} HP left).`, null, {
+        targetPlayerId: pl.id, roomId: r.id, enemyId
+      }, "personal");
 
       pl._defending = false;
 
@@ -1800,6 +1828,8 @@ class App {
     const roomId = ctx.room.id;
     const roomEvents = events.filter(e => {
       if (e.kind !== Schema.EventKind.SYSTEM && e.kind !== Schema.EventKind.COMBAT) return false;
+      const aud = e.audience || "both";
+      if (aud !== "room" && aud !== "both") return false;
       return e.payload?.roomId === roomId;
     }).slice(-200);
 
@@ -1816,9 +1846,21 @@ class App {
       return "rf-system";
     };
 
+    const toRoomNarrative = (e) => {
+      const txt = String(e.text || "");
+      if (e.kind === Schema.EventKind.COMBAT){
+        if (/\bhits\b/i.test(txt) || /\bstrikes\b/i.test(txt)) return "Steel clashes in the dust.";
+      }
+      const mEngaged = txt.match(/^Engaged\s+(.+)\.$/i);
+      if (mEngaged) return `You engage the ${mEngaged[1]}.`;
+      const mDefeated = txt.match(/^(.+)\s+is defeated\./i);
+      if (mDefeated) return `The ${mDefeated[1]} collapses.`;
+      return txt;
+    };
+
     feedEl.innerHTML = roomEvents.map(e => {
       const time = fmtTime(e.ts);
-      return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(e.text)}</div></div>`;
+      return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
     }).join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
 
     if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
@@ -1939,6 +1981,8 @@ class App {
 
     const logs = events.filter(e => {
       if (e.kind !== Schema.EventKind.SYSTEM && e.kind !== Schema.EventKind.COMBAT) return false;
+      const aud = e.audience || "both";
+      if (aud !== "personal" && aud !== "both") return false;
       const a = e.payload?.actorPlayerId;
       const t = e.payload?.targetPlayerId;
       return (a === this.playerId) || (t === this.playerId);
