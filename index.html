@@ -423,7 +423,19 @@ const RoomDefs = Object.freeze({
       enemies: [
         {defId:"bandit", name:"Bandit", hp:50, atk:8, def:2, spd:3, maxAlive:1, respawnSec:8},
       ]
-    }
+    },
+    enterLines:[
+      "You return to the South Country Road; wind worries the dust at your boots.",
+      "The road stretches dimly ahead, and somewhere far off a cart wheel groans."
+    ],
+    ambientLines:[
+      "A loose sign chain taps softly in the wind.",
+      "Dry gravel shifts like something pacing just out of sight."
+    ],
+    crowdAmbientLines:[
+      "You hear other travelers' boots grinding over the road grit.",
+      "Muted voices drift past you, swallowed by the open night."
+    ]
   },
 
   catacombs: {
@@ -446,7 +458,19 @@ const RoomDefs = Object.freeze({
         {defId:"skeleton", name:"Skeleton", hp:40, atk:10, def:1, spd:3, maxAlive:2, respawnSec:10},
         {defId:"bandit", name:"Lost Bandit", hp:55, atk:9, def:2, spd:3, maxAlive:1, respawnSec:14}
       ]
-    }
+    },
+    enterLines:[
+      "You descend into the catacombs; cold drips count the seconds in the dark.",
+      "Stale air closes in as the catacomb stone drinks every footfall."
+    ],
+    ambientLines:[
+      "Water drips from unseen arches, slow and relentless.",
+      "A rusted chain clinks once, then silence swallows it."
+    ],
+    crowdAmbientLines:[
+      "More than one tread stirs dust here; echoes answer from the vaults.",
+      "You catch the scrape of someone else's steel against old stone."
+    ]
   },
 
   forest: {
@@ -466,7 +490,19 @@ const RoomDefs = Object.freeze({
       enemies: [
         {defId:"wolf", name:"Wolf", hp:45, atk:9, def:2, spd:5, maxAlive:2, respawnSec:9},
       ]
-    }
+    },
+    enterLines:[
+      "You slip onto the mossy path; branches whisper above like old gossip.",
+      "The forest closes around you, wet leaves hushing your steps."
+    ],
+    ambientLines:[
+      "Somewhere in the canopy, wings burst and settle again.",
+      "Twigs crack deeper in the trees, then all goes still."
+    ],
+    crowdAmbientLines:[
+      "You hear others brushing through fern and branch nearby.",
+      "A distant shout carries between trunks before fading."
+    ]
   },
 
   village: {
@@ -482,7 +518,19 @@ const RoomDefs = Object.freeze({
     staticObjects: [
       { objectType:"chest", id:"crate", name:"Supply Crate", locked:false }
     ],
-    spawn: { enemies: [] } // safe zone
+    spawn: { enemies: [] }, // safe zone
+    enterLines:[
+      "Lanternlight warms the Shire Village, and for a moment the road feels far away.",
+      "You step into village calm; low chatter and hearth smoke greet you."
+    ],
+    ambientLines:[
+      "A smith's hammer rings once from a nearby forge.",
+      "Wooden shutters knock softly as the evening breeze turns."
+    ],
+    crowdAmbientLines:[
+      "Villagers and travelers mingle, their talk rising and falling around you.",
+      "You catch overlapping footsteps and a laugh from just beyond the square."
+    ]
   }
 });
 
@@ -520,7 +568,8 @@ class GameEngine {
       doors: doorsState,
       entities:{}, playerIds:[],
       combats:{},
-      spawnMeta:{ lastSpawnAt:{} }
+      spawnMeta:{ lastSpawnAt:{} },
+      ambientMeta:{ lastAmbientAt:0, ambientIdx:0, crowdIdx:0, enterIdx:0 }
     };
   }
 
@@ -585,6 +634,28 @@ class GameEngine {
       name,
       state:{ rarity, createdAt: U.now(), expiresAt: U.now()+60000 }
     };
+  }
+
+  _nextFrom(list, room, key){
+    const arr = Array.isArray(list) ? list : [];
+    if (!arr.length) return null;
+    const meta = room.ambientMeta || (room.ambientMeta = { lastAmbientAt:0, ambientIdx:0, crowdIdx:0, enterIdx:0 });
+    const idxKey = key + "Idx";
+    const idx = meta[idxKey] || 0;
+    meta[idxKey] = (idx + 1) % arr.length;
+    return arr[idx % arr.length];
+  }
+
+  _emitRoomAmbient(room){
+    if (!room || !room.playerIds?.length) return;
+    const def = this._getDef(room.defId);
+    const hasOthers = room.playerIds.length > 1;
+    const line = hasOthers
+      ? this._nextFrom(def.crowdAmbientLines, room, "crowd") || this._nextFrom(def.ambientLines, room, "ambient")
+      : this._nextFrom(def.ambientLines, room, "ambient");
+    if (!line) return;
+    room.ambientMeta.lastAmbientAt = U.now();
+    this._emitEvent(Schema.EventKind.SYSTEM, line, null, { roomId: room.id }, "room");
   }
 
   _ensureSpawns(room, initial){
@@ -662,6 +733,10 @@ class GameEngine {
     };
 
     this._ensureSpawns(room, false);
+
+    const def = this._getDef(room.defId);
+    const enterLine = this._nextFrom(def.enterLines, room, "enter");
+    if (enterLine) this._emitEvent(Schema.EventKind.SYSTEM, enterLine, playerId, { actorPlayerId: playerId, roomId: room.id }, "room");
   }
 
   _roomOf(pid){
@@ -1175,6 +1250,11 @@ class GameEngine {
       if (this._ensureSpawns(room, false)) dirty = true;
 
       const now = U.now();
+      const lastAmb = room.ambientMeta?.lastAmbientAt || 0;
+      if (room.playerIds?.length && (now - lastAmb) >= 4500){
+        this._emitRoomAmbient(room);
+      }
+
       for (const ent of Object.values(room.entities)){
         if (ent.kind === Schema.EntityKind.LOOT && ent.state?.expiresAt && now > ent.state.expiresAt){
           delete room.entities[ent.id];
