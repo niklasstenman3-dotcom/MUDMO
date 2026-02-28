@@ -121,10 +121,27 @@
     .rfMsg{display:grid; grid-template-columns:54px 1fr; gap:10px;}
     .rfTime{color:rgba(255,255,255,.45);}
     .rfText{color:rgba(255,255,255,.78);}
-    .rf-system .rfText{color:rgba(220,220,220,.70);}
-    .rf-combat .rfText{color:rgba(255,146,102,.95);}
-    .rf-loot .rfText{color:rgba(110,226,156,.95);}
-    .rf-move .rfText{color:rgba(146,205,226,.95);}
+    .rf-system .rfText{color:rgba(205,210,222,.72);}
+    .rf-enter .rfText{color:rgba(196,181,253,.98);}      /* entering room flavor */
+    .rf-ambient .rfText{color:rgba(170,184,201,.78);}    /* drips/clinks/wind */
+    .rf-presence .rfText{color:rgba(142,211,255,.92);}   /* players connecting/passing */
+    .rf-move .rfText{color:rgba(120,208,221,.94);}       /* movement/scouting/doors */
+    .rf-engage .rfText{color:rgba(255,210,128,.96);}     /* engage declarations */
+    .rf-clash .rfText{color:rgba(255,146,102,.98);}      /* active exchange */
+    .rf-condition .rfText{color:rgba(255,229,138,.98);}  /* faltering/wounded/near death */
+    .rf-death .rfText{color:rgba(255,122,133,.98);}      /* collapses/death beats */
+    .rf-spawn .rfText{color:rgba(158,235,170,.95);}      /* appears/spawns */
+    .rf-loot .rfText{color:rgba(110,226,156,.95);}       /* loot/open/pickup */
+
+    .roomLegend{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
+    .lg{font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.03);}
+    .lg.enter{color:rgba(196,181,253,.98)}
+    .lg.ambient{color:rgba(170,184,201,.86)}
+    .lg.presence{color:rgba(142,211,255,.95)}
+    .lg.move{color:rgba(120,208,221,.94)}
+    .lg.clash{color:rgba(255,146,102,.98)}
+    .lg.condition{color:rgba(255,229,138,.98)}
+    .lg.death{color:rgba(255,122,133,.98)}
 
     /* Inspector */
     .card{
@@ -317,6 +334,10 @@
           <div class="roomName" id="roomTitle">—</div>
           <div class="roomFlavor" id="roomFlavor">—</div>
           <div class="roomSel muted">Selected: <span id="selectedName">None</span></div>
+          <div class="roomLegend">
+            <span class="lg enter">Enter</span><span class="lg ambient">Ambient</span><span class="lg presence">Presence</span>
+            <span class="lg move">Move</span><span class="lg clash">Combat</span><span class="lg condition">Condition</span><span class="lg death">Death</span>
+          </div>
         </div>
         <div class="roomFeed" id="roomFeed"></div>
       </div>
@@ -1919,10 +1940,23 @@ class App {
       return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     };
     const classify = (e) => {
-      const t = (e.text || "").toLowerCase();
-      if (e.kind === Schema.EventKind.COMBAT) return "rf-combat";
+      const t = String(e.text || "").toLowerCase();
+
+      if (t.includes("connected") || t.includes("traveler") || t.includes("voices drift") || t.includes("overlapping footsteps")) return "rf-presence";
+
+      if (/^you return|^you descend|^you slip|^you step into|^you enter/.test(t)) return "rf-enter";
+
+      if (t.includes("drip") || t.includes("clink") || t.includes("chain taps") || t.includes("gravel shifts") || t.includes("wings burst") || t.includes("twigs crack") || t.includes("hammer rings") || t.includes("shutters knock")) return "rf-ambient";
+
+      if (t.startsWith("moved ") || t.startsWith("scouted ") || t.includes("door is ") || t.includes("opened the") || t.includes("closed the") || t.includes("unlocked the")) return "rf-move";
+
+      if (t.includes("engage the")) return "rf-engage";
+      if (t.includes("steel clashes")) return "rf-clash";
+      if (t.includes("faltering") || t.includes("badly wounded") || t.includes("near death")) return "rf-condition";
+      if (t.includes("collapses") || t.includes("fall unconscious")) return "rf-death";
+      if (/^a\s.+\sappears\./.test(t)) return "rf-spawn";
+
       if (t.includes("loot") || t.includes("picked up") || t.includes("opened chest") || t.includes("unlocked")) return "rf-loot";
-      if (t.startsWith("moved ") || t.includes("door is locked") || t.includes("door is closed") || t.includes("opened the") || t.includes("closed the")) return "rf-move";
       return "rf-system";
     };
 
