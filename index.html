@@ -1694,16 +1694,6 @@ class App {
       if (ex){
         btn.title = ex.state.toRoomName || ex.state.toRoomId || titleCase(dir);
         btn.addEventListener("click", ()=>{
-          const gate = ex.state?.gate || { type:"open" };
-          if (gate.type === "door"){
-            const door = ctx.room.doors?.[gate.doorId] || null;
-            const blocked = !door || door.locked || !door.open;
-            if (blocked){
-              const doorProxy = this._getDoorProxyFromExit(ex, ctx);
-              if (doorProxy) this.focusEntity(doorProxy.id);
-              return;
-            }
-          }
           this.store.dispatch(Schema.Action.TRAVEL, ex.id, null);
         });
       } else {
