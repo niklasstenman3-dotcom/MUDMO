@@ -1,6 +1,10 @@
 import { Schema, U, escapeHtml, escapeAttr, titleCase } from "./config/schema.js";
 import { ThemeBg, RoomDefs, renderMiniMapSVG } from "./config/world.js";
-import { BrowserData, CombatActions } from "./config/game-data.js";
+import { BrowserData } from "./config/game-data.js";
+import { VERBS, VERB_BY_ID, CURATED_COMBAT_VERBS, CURATED_OBJECT_VERBS } from "./config/verbs.js";
+import { resolveVerb } from "./engine/resolveVerb.js";
+import { tickStatuses } from "./engine/statusEngine.js";
+import { pickEnemyVerb } from "./engine/ai.js";
 import { ensureSpawns } from "./engine/systems/spawn-system.js";
 import { pickRandomFrom, emitRoomAmbient, roomHasActiveCombat } from "./engine/systems/ambient-system.js";
 
@@ -38,13 +42,8 @@ const _toRuntimeStats = (combatant = {}) => ({
   spd: Math.max(1, Math.round((Number(combatant.speed || 10) / 3)))
 });
 
-const CORE_PHYSICAL_ACTIONS = Object.freeze((CombatActions || []).map(a => ({
-  ...a,
-  category: a.category || "Global Verbs",
-  family: a.family || "Data"
-})));
-
-const CORE_PHYSICAL_BY_ID = Object.fromEntries(CORE_PHYSICAL_ACTIONS.map(a=>[a.id,a]));
+const CORE_PHYSICAL_ACTIONS = Object.freeze(VERBS);
+const CORE_PHYSICAL_BY_ID = Object.freeze(VERB_BY_ID);
 const DEFAULT_VERB_ID = CORE_PHYSICAL_BY_ID.thrust ? "thrust" : (CORE_PHYSICAL_ACTIONS[0]?.id || "bash");
 
 
@@ -205,8 +204,19 @@ class GameEngine {
         enemyDefId:rule.defId,
         hp:hpMax, hpMax,
         stats,
-        materials: tpl?.materials || null,
-        components: tpl?.components || null,
+        material: tpl?.materials?.primary || "flesh",
+        statuses: [],
+        tools: { tool_edge:false, tool_blunt:true, tool_point:false, tool_leverage:false },
+        combatant: {
+          hpMax, hp:hpMax,
+          staminaMax: Number(combatant.stamina_max || combatant.stamina || 60),
+          stamina: Number(combatant.stamina || combatant.stamina_max || 60),
+          poiseMax: Number(combatant.poise_max || combatant.poise || 25),
+          poise: Number(combatant.poise || combatant.poise_max || 25),
+          guardMax: Number(combatant.guard_max || combatant.guard || 15),
+          guard: Number(combatant.guard || combatant.guard_max || 15),
+          speed: Number(combatant.speed || 10)
+        },
         orbit:{ slots:6, assignments:{} }
       }
     };
@@ -240,6 +250,7 @@ class GameEngine {
   _newPlayer(id, name){
     const tpl = _entityTemplateFromData("player") || {};
     const combatant = tpl?.components?.combatant || {};
+    const skills = tpl?.components?.skills || {};
     const hpMax = Number(combatant.hp_max || combatant.hp || 80);
 
     return {
@@ -248,8 +259,24 @@ class GameEngine {
       hp:hpMax, hpMax,
       lvl:1, xp:0, xpNext:200,
       stats:_toRuntimeStats(combatant),
-      materials: tpl?.materials || null,
-      components: tpl?.components || null,
+      material: tpl?.materials?.primary || "flesh",
+      statuses: [],
+      tools: {
+        tool_edge: Number(skills.tool_edge || skills.weapon_edge || 0) > 0,
+        tool_blunt: Number(skills.tool_blunt || skills.weapon_blunt || 0) > 0,
+        tool_point: Number(skills.tool_point || skills.weapon_point || 0) > 0,
+        tool_leverage: Number(skills.tool_leverage || 0) > 0
+      },
+      combatant: {
+        hpMax, hp:hpMax,
+        staminaMax: Number(combatant.stamina_max || combatant.stamina || 80),
+        stamina: Number(combatant.stamina || combatant.stamina_max || 80),
+        poiseMax: Number(combatant.poise_max || combatant.poise || 35),
+        poise: Number(combatant.poise || combatant.poise_max || 35),
+        guardMax: Number(combatant.guard_max || combatant.guard || 25),
+        guard: Number(combatant.guard || combatant.guard_max || 25),
+        speed: Number(combatant.speed || 12)
+      },
       engagedEnemyId:null,
       inventory:[],
       _defending:false
@@ -303,6 +330,145 @@ class GameEngine {
   _roomOf(pid){
     const p = this.state.players[pid];
     return p ? this.state.rooms[p.roomId] : null;
+  }
+
+  _asActorEntity(pidOrEnemyId, room){
+    const player = this.state.players[pidOrEnemyId];
+    if (player){
+      return {
+        id: player.id,
+        name: player.name,
+        material: player.material || "flesh",
+        statuses: player.statuses || (player.statuses=[]),
+        tools: player.tools || {},
+        combatant: player.combatant || {
+          hpMax: player.hpMax, hp: player.hp,
+          staminaMax: 80, stamina: 80,
+          poiseMax: 35, poise: 35,
+          guardMax: 25, guard: 25,
+          speed: player.stats?.spd || 10
+        },
+        playerRef: player
+      };
+    }
+    const enemy = room?.entities?.[pidOrEnemyId];
+    if (enemy?.kind === Schema.EntityKind.ENEMY){
+      return {
+        id: enemy.id,
+        name: enemy.name,
+        material: enemy.state.material || "flesh",
+        statuses: enemy.state.statuses || (enemy.state.statuses=[]),
+        tools: enemy.state.tools || {},
+        combatant: enemy.state.combatant || {
+          hpMax: enemy.state.hpMax, hp: enemy.state.hp,
+          staminaMax: 60, stamina: 60,
+          poiseMax: 25, poise: 25,
+          guardMax: 15, guard: 15,
+          speed: enemy.state.stats?.spd || 8
+        },
+        enemyRef: enemy
+      };
+    }
+    return null;
+  }
+
+  _targetEntityFromRef(room, targetRef){
+    if (!room || !targetRef) return null;
+    const raw = typeof targetRef === "string" ? room.entities[targetRef] : room.entities[targetRef?.targetId || targetRef?.id];
+    if (raw){
+      if (raw.kind === Schema.EntityKind.ENEMY){
+        return {
+          id: raw.id, name: raw.name, material: raw.state.material || "flesh",
+          statuses: raw.state.statuses || (raw.state.statuses=[]),
+          combatant: raw.state.combatant || { hpMax:raw.state.hpMax, hp:raw.state.hp, guard:10, poise:10 },
+          movable: raw.state.movable || (raw.state.movable={mass:80, anchored:false, offset:0})
+        };
+      }
+      if (raw.kind === Schema.EntityKind.OBJECT){
+        const st = raw.state;
+        return {
+          id: raw.id, name: raw.name, material: st.materials?.primary || "wood",
+          statuses: st.statuses || (st.statuses=[]),
+          integrity: st.integrity || (st.integrity = { max:80, current:80, fractureThreshold:25 }),
+          openable: { open: !!st.opened },
+          lockable: { locked: !!st.locked, jammed: !!st.jammed, lockQuality: 8 },
+          barrable: st.barrable || { barred:false },
+          movable: st.movable || { mass:120, anchored:true, offset:0 },
+          commit: ()=>{ st.opened = !!(st.openable?.open ?? st.opened); }
+        };
+      }
+      if (raw.kind === Schema.EntityKind.PLAYER){
+        const p = this.state.players[raw.state.playerId];
+        return this._asActorEntity(p?.id, room);
+      }
+      if (raw.kind === Schema.EntityKind.EXIT){
+        const gate = raw.state?.gate || { type:"open" };
+        if (gate.type === "door") return this._targetEntityFromRef(room, { type:"door", exitId: raw.id });
+      }
+    }
+
+    if (typeof targetRef === "object" && (targetRef.type === "door" || targetRef.exitId)){
+      const ex = room.entities[targetRef.exitId || targetRef.id];
+      if (!ex) return null;
+      const gate = ex.state?.gate || { type:"open" };
+      const door = room.doors?.[gate.doorId];
+      if (!door) return null;
+      door.statuses ||= [];
+      door.integrity ||= { max:80, current:80, fractureThreshold:25 };
+      door.jammed = !!door.jammed;
+      return {
+        id: `door_${ex.id}`,
+        name: `Door (${titleCase(ex.state.dir)})`,
+        material: "wood",
+        statuses: door.statuses,
+        integrity: door.integrity,
+        openable: { get open(){ return !!door.open; }, set open(v){ door.open = !!v; } },
+        lockable: { get locked(){ return !!door.locked; }, set locked(v){ door.locked = !!v; }, get jammed(){ return !!door.jammed; }, set jammed(v){ door.jammed = !!v; }, lockQuality: 8 },
+        barrable: { get barred(){ return !!door.barred; }, set barred(v){ door.barred = !!v; } },
+        movable: { mass:100, anchored:true, offset:0 }
+      };
+    }
+    return null;
+  }
+
+  _emitOutcome(room, actorPid, outcome, targetPayload={}){
+    const lines = outcome?.lines?.length ? outcome.lines : ["Nothing happens."];
+    for (const line of lines){
+      this._emitEvent(Schema.EventKind.SYSTEM, line, null, { actorPlayerId: actorPid, roomId: room.id, ...targetPayload }, "room");
+    }
+  }
+
+  _applyResolveOutcomeToRuntime(actorEnt, targetEnt){
+    if (actorEnt?.playerRef && actorEnt.combatant){
+      actorEnt.playerRef.hp = actorEnt.combatant.hp;
+      actorEnt.playerRef.hpMax = actorEnt.combatant.hpMax;
+    }
+    if (actorEnt?.enemyRef && actorEnt.combatant){
+      actorEnt.enemyRef.state.hp = actorEnt.combatant.hp;
+      actorEnt.enemyRef.state.hpMax = actorEnt.combatant.hpMax;
+    }
+    if (targetEnt?.id && this.state.players[targetEnt.id] && targetEnt.combatant){
+      const p = this.state.players[targetEnt.id];
+      p.hp = targetEnt.combatant.hp;
+      p.hpMax = targetEnt.combatant.hpMax;
+    }
+    const maybeEnemy = Object.values(this.state.rooms).flatMap(r=>Object.values(r.entities)).find(e=>e.id===targetEnt?.id && e.kind===Schema.EntityKind.ENEMY);
+    if (maybeEnemy && targetEnt?.combatant){
+      maybeEnemy.state.hp = targetEnt.combatant.hp;
+      maybeEnemy.state.hpMax = targetEnt.combatant.hpMax;
+    }
+  }
+
+  _resolveVerbIntent(actorId, verbId, targetRef, room){
+    const actor = this._asActorEntity(actorId, room);
+    const target = this._targetEntityFromRef(room, targetRef);
+    if (!actor || !target){
+      return { ok:false, tier:"fail", lines:["No valid target."], applied:{} };
+    }
+    const outcome = resolveVerb({ actor, verbId, target, ctx: { time: U.now()/1000, roomId: room.id, noise:0, knowledge: (this.state.knowledge ||= {}) } });
+    this._applyResolveOutcomeToRuntime(actor, target);
+    if (target.commit) target.commit();
+    return outcome;
   }
 
   handleMessage(msg){
@@ -427,312 +593,72 @@ class GameEngine {
     const p = this.state.players[pid];
     if (!room || !p) return;
 
-    if (!p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `You're not engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
+    const chosen = _legacyActionToVerb(action || {});
+    const targetId = chosen.targetId || p.engagedEnemyId || action?.targetRef?.targetId;
+    const targetRef = action?.targetRef || targetId;
+
+    const outcome = this._resolveVerbIntent(pid, chosen.verbId || DEFAULT_VERB_ID, targetRef, room);
+    this._emitOutcome(room, pid, outcome, { targetId: typeof targetRef === 'string' ? targetRef : targetRef?.id || targetRef?.exitId });
+
+    if (p.engagedEnemyId){
+      this._resolveTurnedCombat(room.id, p.engagedEnemyId, pid);
     }
-
-    const enemyId = p.engagedEnemyId;
-    const combat = this._ensureCombat(room, enemyId, pid);
-
-    if (combat.turn.phase !== "player" || combat.turn.turnPid !== pid){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Wait…`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
-      return;
-    }
-
-    combat.actions[pid] = action;
-    // Resolve immediately in MVP (no queue batching)
-    this._resolveTurnedCombat(room.id, enemyId, pid);
   }
 
   _resolveTurnedCombat(roomId, enemyId, actorPid){
     const room = this.state.rooms[roomId];
     if (!room) return;
-
     const combat = room.combats?.[enemyId];
-    const enemy  = room.entities?.[enemyId];
+    const enemy = room.entities?.[enemyId];
     if (!combat || !enemy || enemy.kind !== Schema.EntityKind.ENEMY) return;
 
-    combat.turn = combat.turn || { phase:"player", turnPid: actorPid, busyUntil:0 };
-    if (combat.turn.phase !== "player") return;
-    if (combat.turn.turnPid !== actorPid) return;
-
-    const engagedIds = Object.keys(combat.engaged || {});
-    if (!engagedIds.length) return;
-
     const p = this.state.players[actorPid];
-    if (!p || p.hp <= 0) return;
-    if (p.engagedEnemyId !== enemyId) return;
+    if (!p || !p.engagedEnemyId || p.engagedEnemyId !== enemyId) return;
 
-    const queued = _legacyActionToVerb(combat.actions?.[actorPid] || { type:"verb", verbId:"thrust", targetId: enemyId });
-    const verb = CORE_PHYSICAL_BY_ID[queued.verbId] || CORE_PHYSICAL_BY_ID.thrust;
-
-    const roll = (chance) => Math.random() < chance;
-    const applyWound = (target, targetName, roomIdForEvent, enemyIdForEvent) => {
-      const current = target.state?.wound || target.wound || null;
-      const wound = { ticks: 3, dmg: 2 };
-      if (target.state) target.state.wound = wound;
-      else target.wound = wound;
-      if (!current){
-        this._emitEvent(Schema.EventKind.SYSTEM, `${targetName} starts bleeding from a deep cut.`, null, { roomId: roomIdForEvent, enemyId: enemyIdForEvent }, "room");
-      }
-    };
-    const tickWound = (holder, isEnemy, holderName, roomIdForEvent, enemyIdForEvent) => {
-      const wound = isEnemy ? holder.state?.wound : holder.wound;
-      if (!wound || wound.ticks <= 0) return 0;
-      const dmg = Math.max(1, wound.dmg || 1);
-      if (isEnemy) holder.state.hp = Math.max(0, holder.state.hp - dmg);
-      else holder.hp = Math.max(0, holder.hp - dmg);
-      wound.ticks -= 1;
-      this._emitEvent(Schema.EventKind.SYSTEM, `${holderName} bleeds as the wound reopens.`, null, { roomId: roomIdForEvent, enemyId: enemyIdForEvent }, "room");
-      return dmg;
-    };
-
-    const prevEnemyHp = enemy.state.hp;
-    const emitEnemyStateNarrative = (beforeHp, afterHp) => {
-      const max = enemy.state.hpMax || 1;
-      const beforePct = (beforeHp / max) * 100;
-      const afterPct = (afterHp / max) * 100;
-      const states = [
-        { t:75, msg:`${enemy.name} is faltering.` },
-        { t:40, msg:`${enemy.name} is badly wounded.` },
-        { t:15, msg:`${enemy.name} is near death.` },
-      ];
-      for (const st of states){
-        if (beforePct > st.t && afterPct <= st.t && afterHp > 0){
-          this._emitEvent(Schema.EventKind.SYSTEM, st.msg, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-        }
-      }
-    };
-
-    const roomLineByVerb = {
-      lacerate:`You flick the blade across ${enemy.name} — SKT!`,
-      cleave:`You bring a heavy cleave into ${enemy.name}'s guard — KRK!`,
-      thrust:`You drive forward at ${enemy.name} — THK!`,
-      bash:`You slam a blunt bash into ${enemy.name} — THUD!`,
-      shove:`You surge through ${enemy.name} with a shove — CRASH!`,
-      grapple:`You hook in and seize ${enemy.name} — SCRAPE!`,
-      trip:`You sweep low at ${enemy.name} — SKRRT!`,
-      brace:`You set your stance and brace for impact.`,
-      wrench:`You wrench hard at ${enemy.name}'s frame — CRK!`
-    };
-
-    // Existing wounds tick before the actor commits an action.
-    tickWound(enemy, true, enemy.name, room.id, enemyId);
-
-    if (enemy.state.hp > 0){
-      if (verb.id === "brace"){
-        p._defending = true;
-        this._emitEvent(Schema.EventKind.SYSTEM, roomLineByVerb.brace, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-        this._emitEvent(Schema.EventKind.SYSTEM, `You brace (Guarded).`, null, { actorPlayerId: p.id, targetPlayerId:p.id, roomId: room.id, enemyId }, "personal");
-      } else {
-        let missChance = Math.max(0.05, 1 - (verb.accuracy || 0.8));
-        if (verb.id === "thrust" && (enemy.state.stats.spd || 0) >= 4) missChance += 0.06;
-        if (verb.id === "lacerate" && (enemy.state.stats.def || 0) <= 2) missChance -= 0.05;
-        if (verb.id === "cleave" && (enemy.state.stats.def || 0) >= 4) missChance += 0.04;
-        missChance = Math.min(0.45, Math.max(0.04, missChance));
-
-        if (roll(missChance)){
-          this._emitEvent(Schema.EventKind.COMBAT, `${verb.name} misses as ${enemy.name} slips the angle.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-          this._emitEvent(Schema.EventKind.COMBAT, `You miss with ${verb.name.toLowerCase()}.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
-        } else {
-          let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def + (verb.power || 0));
-          if (verb.id === "thrust") dmg += 1;
-          const crit = roll((verb.crit || 0.1));
-          if (crit) dmg = Math.round(dmg * 1.7);
-
-          enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
-
-          this._emitEvent(Schema.EventKind.COMBAT, roomLineByVerb[verb.id] || `You strike ${enemy.name}.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-          this._emitEvent(Schema.EventKind.COMBAT, `You ${verb.name.toLowerCase()} ${enemy.name} for ${dmg} (${enemy.state.hp} HP left).${crit ? " Critical." : ""}`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
-
-          if (enemy.state.hp > 0 && roll(verb.wound || 0)) applyWound(enemy, enemy.name, room.id, enemyId);
-
-          if (enemy.state.hp > 0 && verb.id === "trip" && roll(0.35)){
-            this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} is knocked prone.`, null, { actorPlayerId:p.id, roomId: room.id, enemyId }, "room");
-          }
-          if (enemy.state.hp > 0 && verb.id === "cleave" && roll(0.30)){
-            this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name}'s guard breaks under the swing.`, null, { actorPlayerId:p.id, roomId: room.id, enemyId }, "room");
-          }
-          emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
-        }
-      }
-    }
-
-    delete combat.actions[actorPid];
-
-    if (enemy.state.hp <= 0){
-      const loot = this._spawnLoot(`${enemy.name} Coin`, "common");
-      room.entities[loot.id] = loot;
-
-      this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} staggers, then collapses into the dust.`, null, {
-        roomId: room.id, enemyId, focusEntityId: loot.id
-      }, "room");
-      this._emitEvent(Schema.EventKind.SYSTEM, `Victory. ${enemy.name} is defeated and drops ${loot.name}.`, null, {
-        actorPlayerId: actorPid, targetPlayerId: actorPid, roomId: room.id, enemyId, focusEntityId: loot.id
-      }, "personal");
-
-      for (const pid of engagedIds){
-        const pp = this.state.players[pid];
-        if (!pp) continue;
-        pp._defending = false;
-        pp.engagedEnemyId = null;
-        pp.wound = null;
-        const gainedXp = 25;
-        pp.xp = (pp.xp || 0) + gainedXp;
-        while (pp.xp >= (pp.xpNext || 200)){
-          pp.xp -= pp.xpNext;
-          pp.lvl = (pp.lvl || 1) + 1;
-          pp.xpNext = Math.round(pp.xpNext * 1.25);
-          this._emitEvent(Schema.EventKind.SYSTEM, `${pp.name} reached level ${pp.lvl}.`, null, { actorPlayerId: pp.id, roomId: room.id });
-        }
-        delete combat.actions[pid];
-      }
-
-      delete room.combats[enemyId];
-      delete room.entities[enemyId];
-      room.ambientMeta.lastAmbientAt = 0;
-      this._emitRoomAmbient(room);
-      this._broadcastState();
-      return;
-    }
-
+    combat.turn = combat.turn || { phase:"player", turnPid: actorPid, busyUntil:0 };
     combat.turn.phase = "enemy";
-    combat.turn.busyUntil = U.now() + 550;
-    this._broadcastState();
+    combat.turn.busyUntil = U.now() + 700;
 
-    setTimeout(() => {
+    setTimeout(()=>{
       const r = this.state.rooms[roomId];
-      const c = r?.combats?.[enemyId];
       const en = r?.entities?.[enemyId];
       const pl = this.state.players[actorPid];
-      if (!r || !c || !en || !pl) return;
+      if (!r || !en || !pl || pl.hp <= 0 || en.state.hp <= 0) return;
 
-      tickWound(pl, false, "You", r.id, enemyId);
-      if (pl.hp <= 0){
-        this._emitEvent(Schema.EventKind.SYSTEM, `You collapse from your wounds.`, null, {
-          targetPlayerId: pl.id, roomId: r.id, enemyId
-        });
-        this._disengage(pl.id);
-        this._broadcastState();
-        return;
-      }
-
-      const enemyVerb = CORE_PHYSICAL_ACTIONS[Math.floor(Math.random() * CORE_PHYSICAL_ACTIONS.length)];
-
-      if (enemyVerb.id === "brace"){
-        en.state._defending = true;
-        this._emitEvent(Schema.EventKind.COMBAT, `${en.name} braces and lowers their center of gravity.`, null, {
-          targetPlayerId: pl.id, roomId: r.id, enemyId
-        }, "room");
-      } else {
-        let enemyMiss = Math.max(0.05, 1 - (enemyVerb.accuracy || 0.8));
-        if (enemyVerb.id === "thrust" && (pl.stats.spd || 0) >= 4) enemyMiss += 0.05;
-        enemyMiss = Math.min(0.45, Math.max(0.04, enemyMiss));
-
-        if (roll(enemyMiss)){
-          this._emitEvent(Schema.EventKind.COMBAT, `${en.name}'s ${enemyVerb.name.toLowerCase()} misses you by inches.`, null, {
-            targetPlayerId: pl.id, roomId: r.id, enemyId
-          }, "room");
-          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} misses with ${enemyVerb.name.toLowerCase()}.`, null, {
-            targetPlayerId: pl.id, actorPlayerId: pl.id, roomId: r.id, enemyId
-          }, "personal");
-        } else {
-          let edmg = Math.max(1, en.state.stats.atk - pl.stats.def + (enemyVerb.power || 0));
-          if (pl._defending) edmg = Math.ceil(edmg * 0.62);
-
-          const enemyCrit = roll(enemyVerb.crit || 0.1);
-          if (enemyCrit) edmg = Math.round(edmg * 1.65);
-
-          pl.hp = Math.max(0, pl.hp - edmg);
-
-          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} answers with ${enemyVerb.name.toLowerCase()} — steel and bone crack in close quarters.`, null, {
-            targetPlayerId: pl.id, roomId: r.id, enemyId
-          }, "room");
-          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} ${enemyVerb.name.toLowerCase()}s you for ${edmg} (${pl.hp} HP left).${enemyCrit ? " Critical." : ""}`, null, {
-            targetPlayerId: pl.id, actorPlayerId: pl.id, roomId: r.id, enemyId
-          }, "personal");
-
-          if (pl.hp > 0 && roll(enemyVerb.wound || 0.15)) applyWound(pl, "You", r.id, enemyId);
-        }
-      }
-
-      pl._defending = false;
+      const aiWeights = en.state?.aiWeights || { bash:0.35, shove:0.15, grapple:0.12, guard:0.15, observe:0.23 };
+      const enemyActor = this._asActorEntity(enemyId, r);
+      const playerTarget = this._asActorEntity(actorPid, r);
+      const pick = pickEnemyVerb(enemyActor, playerTarget, aiWeights);
+      const out = this._resolveVerbIntent(enemyId, pick, actorPid, r);
+      this._emitOutcome(r, actorPid, out, { enemyId, actorPlayerId: actorPid, targetPlayerId: actorPid });
 
       if (pl.hp <= 0){
-        this._emitEvent(Schema.EventKind.SYSTEM, `You fall unconscious.`, null, {
-          targetPlayerId: pl.id, roomId: r.id, enemyId
-        });
-        this._disengage(pl.id);
-        this._broadcastState();
-        return;
+        this._emitEvent(Schema.EventKind.SYSTEM, `You fall unconscious.`, null, { actorPlayerId: actorPid, roomId: r.id, enemyId });
+        this._disengage(actorPid);
+      } else if (en.state.hp <= 0){
+        this._emitEvent(Schema.EventKind.SYSTEM, `${en.name} is defeated.`, null, { actorPlayerId: actorPid, roomId: r.id, enemyId }, "room");
       }
 
-      c.turn.phase = "player";
-      c.turn.turnPid = actorPid;
-      c.turn.busyUntil = 0;
+      combat.turn.phase = "player";
+      combat.turn.turnPid = actorPid;
+      combat.turn.busyUntil = U.now();
+      delete combat.actions?.[actorPid];
       this._broadcastState();
-    }, 550);
+    }, 720);
   }
 
   _openObject(pid, objId){
     const room = this._roomOf(pid);
-    const p = this.state.players[pid];
-    if (!room || !p) return;
-    if (p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Can't do that while engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const obj = room.entities[objId];
-    if (!obj || obj.kind !== Schema.EntityKind.OBJECT) return;
-
-    if (obj.state.objectType === "chest"){
-      if (obj.state.locked){
-        this._emitEvent(Schema.EventKind.SYSTEM, `The chest is locked.`, null, { actorPlayerId: pid, roomId: room.id, objectId: objId });
-        return;
-      }
-      if (obj.state.opened){
-        this._emitEvent(Schema.EventKind.SYSTEM, `The chest is empty.`, null, { actorPlayerId: pid, roomId: room.id, objectId: objId });
-        return;
-      }
-
-      obj.state.opened = true;
-
-      // drop loot + focus
-      const loot = this._spawnLoot("Iron Sword", "common");
-      room.entities[loot.id] = loot;
-
-      this._emitEvent(Schema.EventKind.SYSTEM, `Opened chest. Loot: ${loot.name}.`, null, {
-        actorPlayerId: pid, roomId: room.id, objectId: objId, focusEntityId: loot.id
-      });
-    }
+    if (!room) return;
+    const out = this._resolveVerbIntent(pid, "open", objId, room);
+    this._emitOutcome(room, pid, out, { objectId: objId });
   }
 
   _unlockObject(pid, objId){
     const room = this._roomOf(pid);
-    const p = this.state.players[pid];
-    if (!room || !p) return;
-    if (p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Can't do that while engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const obj = room.entities[objId];
-    if (!obj || obj.kind !== Schema.EntityKind.OBJECT) return;
-
-    const hasKey = p.inventory.some(it => (it.name||"").toLowerCase().includes("rusty key"));
-    if (!obj.state.locked){
-      this._emitEvent(Schema.EventKind.SYSTEM, `It's not locked.`, null, { actorPlayerId: pid, roomId: room.id, objectId: objId });
-      return;
-    }
-    if (!hasKey){
-      this._emitEvent(Schema.EventKind.SYSTEM, `You need a Rusty Key.`, null, { actorPlayerId: pid, roomId: room.id, objectId: objId });
-      return;
-    }
-
-    obj.state.locked = false;
-    this._emitEvent(Schema.EventKind.SYSTEM, `Unlocked.`, null, { actorPlayerId: pid, roomId: room.id, objectId: objId });
+    if (!room) return;
+    const out = this._resolveVerbIntent(pid, "unlock", objId, room);
+    this._emitOutcome(room, pid, out, { objectId: objId });
   }
 
   _pickup(pid, lootId){
@@ -768,81 +694,23 @@ class GameEngine {
 
   _unlockDoor(pid, exitId){
     const room = this._roomOf(pid);
-    const p = this.state.players[pid];
-    if (!room || !p) return;
-    if (p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Can't do that while engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const {door, doorId, ex} = this._exitDoor(room, exitId);
-    if (!doorId || !door){
-      this._emitEvent(Schema.EventKind.SYSTEM, `No door to unlock.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-    if (!door.locked){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Door isn't locked.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const hasKey = p.inventory.some(it => (it.name||"").toLowerCase().includes("rusty key"));
-    if (!hasKey){
-      this._emitEvent(Schema.EventKind.SYSTEM, `You need a Rusty Key.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    door.locked = false;
-    this._emitEvent(Schema.EventKind.SYSTEM, `Unlocked the ${titleCase(ex.state.dir)} door.`, null, { actorPlayerId: pid, roomId: room.id });
+    if (!room) return;
+    const out = this._resolveVerbIntent(pid, "unlock", { type:"door", exitId }, room);
+    this._emitOutcome(room, pid, out, { exitId });
   }
 
   _openDoor(pid, exitId){
     const room = this._roomOf(pid);
-    const p = this.state.players[pid];
-    if (!room || !p) return;
-    if (p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Can't do that while engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const {door, doorId, ex} = this._exitDoor(room, exitId);
-    if (!doorId || !door){
-      this._emitEvent(Schema.EventKind.SYSTEM, `No door to open.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-    if (door.locked){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Door is locked.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-    if (door.open){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Door is already open.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    door.open = true;
-    this._emitEvent(Schema.EventKind.SYSTEM, `Opened the ${titleCase(ex.state.dir)} door.`, null, { actorPlayerId: pid, roomId: room.id });
+    if (!room) return;
+    const out = this._resolveVerbIntent(pid, "open", { type:"door", exitId }, room);
+    this._emitOutcome(room, pid, out, { exitId });
   }
 
   _closeDoor(pid, exitId){
     const room = this._roomOf(pid);
-    const p = this.state.players[pid];
-    if (!room || !p) return;
-    if (p.engagedEnemyId){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Can't do that while engaged.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    const {door, doorId, ex} = this._exitDoor(room, exitId);
-    if (!doorId || !door){
-      this._emitEvent(Schema.EventKind.SYSTEM, `No door to close.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-    if (!door.open){
-      this._emitEvent(Schema.EventKind.SYSTEM, `Door is already closed.`, null, { actorPlayerId: pid, roomId: room.id });
-      return;
-    }
-
-    door.open = false;
-    this._emitEvent(Schema.EventKind.SYSTEM, `Closed the ${titleCase(ex.state.dir)} door.`, null, { actorPlayerId: pid, roomId: room.id });
+    if (!room) return;
+    const out = this._resolveVerbIntent(pid, "close", { type:"door", exitId }, room);
+    this._emitOutcome(room, pid, out, { exitId });
   }
 
   _travel(pid, exitId){
@@ -905,6 +773,13 @@ class GameEngine {
   _tick(){
     let dirty = false;
 
+    const statusEntities = [];
+    for (const p of Object.values(this.state.players)){
+      p.combatant ||= { hpMax:p.hpMax, hp:p.hp, staminaMax:80, stamina:80, poiseMax:30, poise:30, guardMax:20, guard:20, speed:p.stats?.spd || 10 };
+      p.statuses ||= [];
+      statusEntities.push({ id:p.id, combatant:p.combatant, statuses:p.statuses });
+    }
+
     for (const room of Object.values(this.state.rooms)){
       if (this._ensureSpawns(room, false)) dirty = true;
 
@@ -918,9 +793,24 @@ class GameEngine {
         if (ent.kind === Schema.EntityKind.LOOT && ent.state?.expiresAt && now > ent.state.expiresAt){
           delete room.entities[ent.id];
           dirty = true;
+          continue;
+        }
+        if (ent.kind === Schema.EntityKind.ENEMY){
+          ent.state.combatant ||= { hpMax:ent.state.hpMax, hp:ent.state.hp, staminaMax:60, stamina:60, poiseMax:25, poise:25, guardMax:15, guard:15, speed:ent.state.stats?.spd || 9 };
+          ent.state.statuses ||= [];
+          statusEntities.push({ id:ent.id, combatant:ent.state.combatant, statuses:ent.state.statuses });
+          ent.state.hp = ent.state.combatant.hp;
         }
       }
+
+      for (const d of Object.values(room.doors || {})){
+        d.statuses ||= [];
+        statusEntities.push({ id:`door_${room.id}`, statuses:d.statuses, integrity:d.integrity || { max:80, current:80, fractureThreshold:25 }, lockable:d, openable:d });
+      }
     }
+
+    tickStatuses(statusEntities, { time: U.now()/1000, dt: 0.2 });
+    for (const p of Object.values(this.state.players)) p.hp = p.combatant?.hp ?? p.hp;
 
     if (dirty) this._broadcastState();
   }
@@ -1102,17 +992,17 @@ const Handlers = {
         { label:"Disengage", style:"", enabled: youEngagedThis, hint: youEngagedThis?"":"Not engaged", menuPath:["Interact","Combat"], intent:{ action:Schema.Action.DISENGAGE } }
       ];
 
-      if (youEngagedThis){
-        const hint = isYourTurn ? "" : "Enemy is acting…";
-        for (const pick of CORE_PHYSICAL_ACTIONS){
-          acts.push({
-            label: pick.name,
-            style: pick.id === "cleave" ? "primary" : "",
-            enabled: isYourTurn,
-            hint,
-            intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:pick.id, targetId: ent.id } }
-          });
-        }
+      const hint = isYourTurn ? "" : "Enemy is acting…";
+      const ids = CURATED_COMBAT_VERBS.filter(id => CORE_PHYSICAL_BY_ID[id]);
+      for (const vid of ids){
+        const pick = CORE_PHYSICAL_BY_ID[vid];
+        acts.push({
+          label: pick.label || pick.name,
+          style: ["bash","thrust","slice"].includes(pick.id) ? "primary" : "",
+          enabled: youEngagedThis ? isYourTurn : ["observe","inspect"].includes(pick.id),
+          hint: youEngagedThis ? hint : (anyEngaged ? "Engage to use combat verbs" : "Can use perception now"),
+          intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:pick.id, targetId: ent.id, targetRef: ent.id } }
+        });
       }
       return acts;
     }
@@ -1134,13 +1024,15 @@ const Handlers = {
     },
     actions(ent, ctx){
       const inCombat = !!ctx.you?.engagedEnemyId;
-      if (ent.state.objectType==="chest"){
-        return [
-          { label:"Unlock", style:"", enabled: !inCombat && ent.state.locked, hint: inCombat?"In combat":(ent.state.locked?"Requires Rusty Key":"Not locked"), menuPath:["Interact","Object"], intent:{ action:Schema.Action.UNLOCK, targetId: ent.id } },
-          { label:"Open", style:"primary", enabled: !inCombat && !ent.state.locked && !ent.state.opened, hint: inCombat?"In combat":(ent.state.opened?"Already opened":(ent.state.locked?"Locked":"")), menuPath:["Interact","Object"], intent:{ action:Schema.Action.OPEN, targetId: ent.id } }
-        ];
-      }
-      return [];
+      const vids = CURATED_OBJECT_VERBS.filter(id => CORE_PHYSICAL_BY_ID[id]);
+      return vids.map((vid, i) => ({
+        label: CORE_PHYSICAL_BY_ID[vid].label || vid,
+        style: ["open","unlock","pry"].includes(vid) ? "primary" : "",
+        enabled: !inCombat || ["observe","inspect"].includes(vid),
+        hint: inCombat && !["observe","inspect"].includes(vid) ? "In combat" : "",
+        menuPath:["Interact","Object"],
+        intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:vid, targetId: ent.id, targetRef: ent.id } }
+      }));
     }
   },
 

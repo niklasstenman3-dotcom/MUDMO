@@ -393,6 +393,8 @@
     .mapSvgWrap svg{ width:100%; height:100%; display:block; }
 
 
+    .mapFeed{display:none;}
+
     .mapPanel .mapBox{position:relative; min-height:0;}
     .mapPanel .mapSvgWrap{position:relative; z-index:1;}
 
