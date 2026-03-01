@@ -1018,6 +1018,8 @@ class App {
     this._lastConsumedEventIndex = 0;
     this._pendingFocusEntityId = null;
 
+    // transient ambient action-sound dedupe
+    this._lastAmbientActionSoundKey = null;
 
     this.engine.connect(this.playerId, this.playerName);
 
@@ -1405,49 +1407,67 @@ class App {
   }
 
   renderAmbientStateLine(roomEvents, room, nowTimeLabel){
-    const recent = roomEvents.slice(-18);
+    const recent = roomEvents.slice(-24);
+    const now = U.now();
     const hasActiveCombat = Object.values(room?.combats || {}).some(c => Object.keys(c?.engaged || {}).length > 0);
 
-    const soundTokenFor = (text) => {
-      const low = String(text || "").toLowerCase();
-      if (low.includes("drip")) return "drip";
-      if (low.includes("wind")) return "wind";
-      if (low.includes("shift") || low.includes("skitter") || low.includes("rustle") || low.includes("gravel")) return "shift";
-      if (low.includes("clink") || low.includes("taps") || low.includes("knock") || low.includes("jingle")) return "clink";
-      if (low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes") || low.includes("crack")) return "CLANG";
-      return null;
+    const isInteractiveEvent = (e) => {
+      const low = String(e?.text || "").toLowerCase();
+      if (e?.kind === Schema.EventKind.COMBAT) return true;
+      return low.startsWith("moved ")
+        || low.startsWith("scouted ")
+        || low.includes("opened")
+        || low.includes("closed")
+        || low.includes("unlocked")
+        || low.includes("picked up")
+        || low.includes("engage the")
+        || low.includes("brace for impact");
     };
 
-    const newestCombat = [...recent].reverse().find(e => e.kind === Schema.EventKind.COMBAT);
-    if (hasActiveCombat && newestCombat && (U.now() - (newestCombat.ts || 0)) < 1800){
-      const low = String(newestCombat.text || "").toLowerCase();
-      const pick = (arr) => arr[(Number(newestCombat.ts) || U.now()) % arr.length];
-      const lead = low.includes("critical") ? pick(["KRANG", "SKRAK", "KRAANG"])
-        : low.includes("miss") ? pick(["WHIFF", "SWISH", "FWIP"])
-        : pick(["CLANG", "KLANG", "CLASH"]);
-      const tail = low.includes("miss") ? pick(["swish", "hiss", "whip"]) : pick(["clink", "tink", "chink"]);
-      return `<div class="rfMsg rf-ambient-state is-combat"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText"><span class="rfActionSound">${escapeHtml(lead)}</span><span class="rfStateSep"> … </span><span class="rfStateToken rfStateToken--soft">${escapeHtml(tail)}</span>.</div></div>`;
+    const newestAction = [...recent].reverse().find(isInteractiveEvent);
+    if (!newestAction) return null;
+
+    const actionAge = now - (newestAction.ts || 0);
+    if (actionAge > 1500) return null;
+
+    const low = String(newestAction.text || "").toLowerCase();
+    const payload = newestAction.payload || {};
+    const entityRef = payload.enemyId || payload.objectId || payload.lootId || payload.exitId || payload.roomId || "room";
+
+    const actionType = newestAction.kind === Schema.EventKind.COMBAT
+      ? (low.includes("critical") ? "combat-crit" : low.includes("miss") ? "combat-miss" : "combat-hit")
+      : (low.includes("opened") ? "interact-open"
+        : low.includes("closed") ? "interact-close"
+        : low.includes("unlocked") ? "interact-unlock"
+        : low.includes("picked up") ? "interact-loot"
+        : low.includes("moved") ? "interact-move"
+        : low.includes("scouted") ? "interact-scout"
+        : low.includes("engage") ? "interact-engage"
+        : "interact");
+
+    const eventKey = `${actionType}:${entityRef}:${newestAction.ts}`;
+
+    if (this._lastAmbientActionSoundKey !== eventKey){
+      this._lastAmbientActionSoundKey = eventKey;
+    } else if (actionAge > 900){
+      // same action has already been displayed; let it disappear quickly
+      return null;
     }
 
-    if (hasActiveCombat) return null;
+    const pick = (arr) => arr[(Number(newestAction.ts) || now) % arr.length];
+    const ono = actionType === "combat-crit" ? pick(["KRANG", "SKRAK", "KRAANG"])
+      : actionType === "combat-miss" ? pick(["WHIFF", "SWISH", "FWIP"])
+      : actionType === "combat-hit" ? pick(["CLANG", "KLANG", "CLASH"])
+      : actionType === "interact-open" ? pick(["CREAK", "KNOCK", "CLACK"])
+      : actionType === "interact-close" ? pick(["THUD", "CLACK", "TOK"])
+      : actionType === "interact-unlock" ? pick(["CLICK", "TCHK", "SNICK"])
+      : actionType === "interact-loot" ? pick(["JINGLE", "CHINK", "CLINK"])
+      : actionType === "interact-move" ? pick(["SCUFF", "STEP", "TRUDGE"])
+      : actionType === "interact-scout" ? pick(["HUSH", "RUSTLE", "SIFT"])
+      : pick(["CLINK", "SHIFT", "WIND"]);
 
-    const steadyByRoom = {
-      catacombs: ["drip", "shift", "wind", "clink"],
-      road: ["wind", "shift", "clink", "wind"],
-      forest: ["wind", "shift", "clink", "wind"],
-      village: ["wind", "clink", "shift", "wind"]
-    };
-
-    const steady = steadyByRoom[room?.defId] || ["wind", "shift", "clink", "wind"];
-    const phase = Math.floor(U.now() / 3200) % steady.length; // slower drift
-    const rotatedSteady = steady.map((_, i) => steady[(i + phase) % steady.length]);
-
-    const recentTokens = recent.map(e => soundTokenFor(e.text)).filter(Boolean).slice(-1);
-    const lead = recentTokens[0] || rotatedSteady[0];
-    const tail = rotatedSteady.find(t => t !== lead) || rotatedSteady[1] || "wind";
-
-    const rendered = `<span class="rfStateToken rfStateToken--soft">${escapeHtml(lead)}</span><span class="rfStateSep"> … </span><span class="rfStateToken rfStateToken--soft">${escapeHtml(tail)}</span>.`;
-    return `<div class="rfMsg rf-ambient-state"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText">${rendered}</div></div>`;
+    const combatCls = hasActiveCombat ? " is-combat" : "";
+    return `<div class="rfMsg rf-ambient-state${combatCls}"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText"><span class="rfActionSound">${escapeHtml(ono)}</span>.</div></div>`;
   }
 
   renderInspector(){
