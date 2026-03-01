@@ -1,0 +1,45 @@
+id: bandit
+name: Bandit
+material_primary: flesh
+tags: [actor]
+components:
+  combatant:
+    hp: 55
+    hp_max: 55
+    stamina: 45
+    stamina_max: 45
+    poise: 18
+    poise_max: 18
+    guard: 10
+    guard_max: 10
+    speed: 5
+  anatomy:
+    limbs: { head: healthy, torso: healthy, arm_l: healthy, arm_r: healthy, leg_l: healthy, leg_r: healthy }
+    bleed_tolerance: 10
+    injury_slots: 4
+  movable:
+    mass: 78
+    friction: 0.55
+    anchored: false
+  skills:
+    tool_edge: 1
+    tool_blunt: 2
+    tool_point: 1
+    tool_leverage: 0
+    athletics: 2
+    grappling: 2
+    perception: 1
+    lockwork: 0
+ai:
+  archetype: skirmisher
+  weights:
+    observe: 0.2
+    bash: 0.35
+    shove: 0.15
+    grapple: 0.1
+    trip: 0.2
+  rules:
+    - if: "target.status.prone"
+      then_prefer: [cleave, bash]
+    - if: "self.stamina < 0.2"
+      then_prefer: [brace, observe]

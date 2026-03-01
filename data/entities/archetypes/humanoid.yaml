@@ -1,0 +1,29 @@
+material_primary: flesh
+components:
+  combatant:
+    hp: 60
+    hp_max: 60
+    stamina: 40
+    stamina_max: 40
+    poise: 20
+    poise_max: 20
+    guard: 10
+    guard_max: 10
+    speed: 5
+  anatomy:
+    limbs: { head: healthy, torso: healthy, arm_l: healthy, arm_r: healthy, leg_l: healthy, leg_r: healthy }
+    bleed_tolerance: 10
+    injury_slots: 4
+  movable:
+    mass: 80
+    friction: 0.5
+    anchored: false
+  skills:
+    tool_edge: 1
+    tool_blunt: 1
+    tool_point: 1
+    tool_leverage: 1
+    athletics: 2
+    grappling: 2
+    perception: 2
+    lockwork: 1
