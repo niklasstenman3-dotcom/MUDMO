@@ -1632,15 +1632,6 @@ class App {
 
     feedEl.innerHTML = entries.join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
 
-    const mapFeed = document.getElementById("mapFeed");
-    if (mapFeed){
-      const preview = roomEvents.slice(-2).map(e => {
-        const time = fmtTime(e.ts);
-        return `<div class="rfMsg"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
-      }).join("");
-      mapFeed.innerHTML = preview || `<div class="muted">Map feed idle…</div>`;
-    }
-
     if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
   }
 

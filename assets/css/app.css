@@ -48,7 +48,7 @@
       opacity:.35;
     }
     .top,.bottom{display:contents;}
-    .leftRail{grid-column:1; grid-row:1 / 3; display:grid; grid-template-rows:144px 204px minmax(0,1fr); gap:10px; min-height:0; overflow:hidden; position:relative; z-index:1;}
+    .leftRail{grid-column:1; grid-row:1 / 3; display:grid; grid-template-rows:260px 168px minmax(0,1fr); gap:10px; min-height:0; overflow:hidden; position:relative; z-index:1;}
     .railPanel{min-height:0;}
     .roomPanel{grid-column:2; grid-row:1; position:relative; z-index:1;}
     .inspectorPanel{grid-column:3; grid-row:1; position:relative; z-index:1;}
@@ -392,19 +392,6 @@
     .mapSvgWrap > :not(svg){display:none !important;}
     .mapSvgWrap svg{ width:100%; height:100%; display:block; }
 
-
-    .mapFeed{
-      border-top:1px solid rgba(255,255,255,.08);
-      font-family:var(--mono);
-      font-size:12px;
-      line-height:1.25;
-      color:rgba(255,255,255,.82);
-      padding:8px 10px;
-      min-height:56px;
-      max-height:72px;
-      overflow:auto;
-      background:rgba(0,0,0,.18);
-    }
 
     .mapPanel .mapBox{position:relative; min-height:0;}
     .mapPanel .mapSvgWrap{position:relative; z-index:1;}
