@@ -1,0 +1,7 @@
+id: fence_wood
+name: Wood Fence
+archetypes: [wood_structure]
+components:
+  integrity: { max: 90, current: 90, fracture_threshold: 30 }
+  movable: { mass: 100, friction: 0.8, anchored: true }
+tags: [structure]
