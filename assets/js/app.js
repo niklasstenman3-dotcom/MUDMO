@@ -1031,21 +1031,15 @@ const Handlers = {
 
       if (youEngagedThis){
         const hint = isYourTurn ? "" : "Enemy is acting…";
-        const combatPicks = _pickThreeCombatActions(ent.id, turn);
-        for (const pick of combatPicks){
+        for (const pick of CORE_PHYSICAL_ACTIONS){
           acts.push({
             label: pick.name,
             style: pick.id === "cleave" ? "primary" : "",
             enabled: isYourTurn,
             hint,
-            menuPath:["Physical Attacks","Core Verbs"],
             intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:pick.id, targetId: ent.id } }
           });
         }
-        acts.push(
-          { label:"Cantrip (soon)", style:"", enabled:false, hint:"Magic catalog comes next phase", menuPath:["Magic","Arcane"], intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:"brace", targetId: ent.id } } },
-          { label:"Use Item (soon)", style:"", enabled:false, hint:"Inventory-use hooks coming next phase", menuPath:["Use","Inventory"], intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:"brace", targetId: ent.id } } }
-        );
       }
       return acts;
     }
@@ -1526,34 +1520,17 @@ class App {
   }
 
   _renderActionDropdown(actions){
-    const tree = new Map();
+    let html = `<div class="actionMenuFlat"><div class="actionRow">`;
+    html += `<select class="actionSelect" data-action-select>`;
     for (let i=0;i<actions.length;i++){
       const a = actions[i];
-      const path = this._menuPathForAction(a);
-      const top = path[0] || "Actions";
-      const sub = path[1] || "General";
-      if (!tree.has(top)) tree.set(top, new Map());
-      const subMap = tree.get(top);
-      if (!subMap.has(sub)) subMap.set(sub, []);
-      subMap.get(sub).push({ idx:i, action:a });
+      const disabled = a.enabled ? "" : "disabled";
+      const label = `${a.label}${a.enabled ? "" : " (unavailable)"}`;
+      html += `<option value="${i}" ${disabled}>${escapeHtml(label)}</option>`;
     }
-
-    let html = `<div class="actionMenu"><div class="menuNode"><button class="menuBtn" type="button">Actions ▾</button><div class="submenu">`;
-    for (const [cat, subMap] of tree.entries()){
-      html += `<div class="menuNode"><button class="menuBtn" type="button">${escapeHtml(cat)} ▸</button><div class="submenu">`;
-      for (const [sub, rows] of subMap.entries()){
-        html += `<div class="menuNode"><button class="menuBtn" type="button">${escapeHtml(sub)} ▸</button><div class="submenu">`;
-        for (const row of rows){
-          const a = row.action;
-          const disabled = a.enabled ? "" : "disabled";
-          const title = a.enabled ? "" : (a.hint || "Unavailable");
-          html += `<button class="menuItemBtn" data-act="${row.idx}" ${disabled} title="${escapeAttr(title)}">${escapeHtml(a.label)}</button>`;
-        }
-        html += `</div></div>`;
-      }
-      html += `</div></div>`;
-    }
-    html += `</div></div></div>`;
+    html += `</select>`;
+    html += `<button class="btn small" type="button" data-action-run>Do</button>`;
+    html += `</div></div>`;
     return html;
   }
 
@@ -1706,6 +1683,19 @@ class App {
     parts.push(`</div>`);
 
     box.innerHTML = parts.join("");
+
+    const runBtn = box.querySelector("[data-action-run]");
+    const selectEl = box.querySelector("[data-action-select]");
+    if (runBtn && selectEl){
+      runBtn.addEventListener("click", ()=>{
+        const idx = Number(selectEl.value);
+        const a = actions[idx];
+        if (!a || !a.enabled) return;
+        const intent = a.intent || {};
+        this.store.dispatch(intent.action, intent.targetId || ent.id || null, intent.payload || null);
+      });
+      selectEl.addEventListener("dblclick", ()=> runBtn.click());
+    }
 
     box.querySelectorAll("button[data-act]").forEach(btn=>{
       btn.addEventListener("click", ()=>{
