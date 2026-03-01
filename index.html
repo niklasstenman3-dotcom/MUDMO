@@ -10,13 +10,28 @@
 <body>
   <div class="app" data-version="v1">
     <div class="top">
-      <div class="panel">
-        <div class="hdr"><div class="title">Entities</div><div class="pill">Mount</div></div>
-        <div class="content" id="entityGroups"><div class="muted">Loading entities…</div></div>
+      <div class="leftRail">
+        <div class="panel railPanel mapPanel">
+          <div class="hdr"><div class="title">Map</div><div class="pill" id="mapPill">Mount</div></div>
+          <div class="mapBox">
+            <div class="mapSvgWrap" id="minimap"><div class="muted">Loading map…</div></div>
+          </div>
+          <div class="roomFeed" id="roomFeed"><div class="muted">Waiting for room events…</div></div>
+        </div>
+
+        <div class="panel railPanel">
+          <div class="hdr"><div class="title">Compass</div><div class="pill">Move</div></div>
+          <div class="content" id="compassMount"><div class="muted">Loading directions…</div></div>
+        </div>
+
+        <div class="panel railPanel entitiesPanel">
+          <div class="hdr"><div class="title">Entities</div><div class="pill">Mount</div></div>
+          <div class="content" id="entityGroups"><div class="muted">Loading entities…</div></div>
+        </div>
       </div>
 
       <div class="panel roomPanel">
-        <div class="hdr"><div class="title">Room</div><div class="pill" id="youPill">—</div></div>
+        <div class="hdr"><div class="title" id="roomPanelTitle">Room</div><div class="pill" id="youPill">—</div></div>
         <div class="content roomContent">
           <div class="statusStrip" id="statusStrip">Loading status…</div>
           <div class="roomHeader">
@@ -26,7 +41,6 @@
           </div>
           <div class="roomFeed" id="roomFeed"><div class="muted">Waiting for room events…</div></div>
         </div>
-        <div class="roomFeed" id="roomFeed"></div>
       </div>
 
       <div class="panel">
@@ -36,12 +50,6 @@
     </div>
 
     <div class="bottom">
-      <div class="panel">
-        <div class="hdr"><div class="title">Map</div><div class="pill" id="mapPill">Mount</div></div>
-        <div class="mapBox">
-          <div class="mapSvgWrap" id="minimap"><div class="muted">Loading map…</div></div>
-        </div>
-      </div>
       <div class="panel stream chatWide">
         <div class="hdr"><div class="title">Chat</div><div class="pill">Room</div></div>
         <div class="streamBody" id="chatStream"><div class="muted">No chat messages yet.</div></div>

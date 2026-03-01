@@ -3,6 +3,53 @@ import { ThemeBg, RoomDefs, renderMiniMapSVG } from "./config/world.js";
 import { ensureSpawns } from "./engine/systems/spawn-system.js";
 import { pickRandomFrom, emitRoomAmbient, roomHasActiveCombat } from "./engine/systems/ambient-system.js";
 
+
+const CORE_PHYSICAL_ACTIONS = [
+  { id:"lacerate", name:"Lacerate", category:"Physical Attacks", family:"Core", accuracy:0.88, power:0, crit:0.10, wound:0.34, tags:["bleed","unarmored"] },
+  { id:"cleave", name:"Cleave", category:"Physical Attacks", family:"Core", accuracy:0.74, power:3, crit:0.12, wound:0.12, tags:["guardBreak","slow","armor"] },
+  { id:"thrust", name:"Thrust", category:"Physical Attacks", family:"Core", accuracy:0.84, power:1, crit:0.11, wound:0.16, tags:["pierce","guard"] },
+  { id:"bash", name:"Bash", category:"Physical Attacks", family:"Core", accuracy:0.80, power:2, crit:0.08, wound:0.08, tags:["daze","armor"] },
+  { id:"shove", name:"Shove", category:"Physical Attacks", family:"Core", accuracy:0.83, power:1, crit:0.06, wound:0.05, tags:["offBalance"] },
+  { id:"grapple", name:"Grapple", category:"Physical Attacks", family:"Core", accuracy:0.72, power:1, crit:0.05, wound:0.03, tags:["restrain"] },
+  { id:"trip", name:"Trip", category:"Physical Attacks", family:"Core", accuracy:0.79, power:1, crit:0.06, wound:0.04, tags:["prone"] },
+  { id:"brace", name:"Brace", category:"Physical Attacks", family:"Core", accuracy:1, power:0, crit:0, wound:0, tags:["defend"] },
+  { id:"wrench", name:"Wrench", category:"Physical Attacks", family:"Core", accuracy:0.75, power:2, crit:0.09, wound:0.18, tags:["injure"] }
+];
+
+const CORE_PHYSICAL_BY_ID = Object.fromEntries(CORE_PHYSICAL_ACTIONS.map(a=>[a.id,a]));
+
+function _seedFromText(text){
+  let h = 2166136261;
+  const str = String(text || "");
+  for (let i=0;i<str.length;i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) || 1;
+}
+
+function _pickThreeCombatActions(enemyId, turn){
+  const pool = CORE_PHYSICAL_ACTIONS.filter(a=>a.id !== "brace");
+  const picks = [];
+  let seed = _seedFromText(`${enemyId}:${turn?.phase || "player"}:${turn?.busyUntil || 0}:${turn?.turnPid || ""}`);
+  while (picks.length < 3 && picks.length < pool.length){
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const idx = seed % pool.length;
+    const cand = pool[idx];
+    if (!picks.find(x=>x.id===cand.id)) picks.push(cand);
+  }
+  return picks;
+}
+
+function _legacyActionToVerb(a){
+  if (!a) return { type:"verb", verbId:"thrust" };
+  if (a.type === "verb" && CORE_PHYSICAL_BY_ID[a.verbId]) return a;
+  if (a.type === "defend") return { type:"verb", verbId:"brace" };
+  if (a.type === "skill") return { type:"verb", verbId:"cleave", targetId:a.targetId };
+  if (a.type === "attack") return { type:"verb", verbId:"thrust", targetId:a.targetId };
+  return { type:"verb", verbId:"thrust", targetId:a.targetId };
+}
+
 /* ---------------- Engine ---------------- */
 class GameEngine {
   constructor(worldId){
@@ -344,10 +391,11 @@ class GameEngine {
     if (!p || p.hp <= 0) return;
     if (p.engagedEnemyId !== enemyId) return;
 
-    const a = combat.actions?.[actorPid] || { type:"attack", targetId: enemyId };
+    const queued = _legacyActionToVerb(combat.actions?.[actorPid] || { type:"verb", verbId:"thrust", targetId: enemyId });
+    const verb = CORE_PHYSICAL_BY_ID[queued.verbId] || CORE_PHYSICAL_BY_ID.thrust;
 
     const roll = (chance) => Math.random() < chance;
-    const applyWound = (target, sourceName, targetName, roomIdForEvent, enemyIdForEvent) => {
+    const applyWound = (target, targetName, roomIdForEvent, enemyIdForEvent) => {
       const current = target.state?.wound || target.wound || null;
       const wound = { ticks: 3, dmg: 2 };
       if (target.state) target.state.wound = wound;
@@ -384,39 +432,55 @@ class GameEngine {
       }
     };
 
+    const roomLineByVerb = {
+      lacerate:`You flick the blade across ${enemy.name} — SKT!`,
+      cleave:`You bring a heavy cleave into ${enemy.name}'s guard — KRK!`,
+      thrust:`You drive forward at ${enemy.name} — THK!`,
+      bash:`You slam a blunt bash into ${enemy.name} — THUD!`,
+      shove:`You surge through ${enemy.name} with a shove — CRASH!`,
+      grapple:`You hook in and seize ${enemy.name} — SCRAPE!`,
+      trip:`You sweep low at ${enemy.name} — SKRRT!`,
+      brace:`You set your stance and brace for impact.`,
+      wrench:`You wrench hard at ${enemy.name}'s frame — CRK!`
+    };
+
     // Existing wounds tick before the actor commits an action.
     tickWound(enemy, true, enemy.name, room.id, enemyId);
 
     if (enemy.state.hp > 0){
-      if (a.type === "defend"){
+      if (verb.id === "brace"){
         p._defending = true;
-        this._emitEvent(Schema.EventKind.SYSTEM, `You raise your guard and brace for impact.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id }, "personal");
+        this._emitEvent(Schema.EventKind.SYSTEM, roomLineByVerb.brace, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+        this._emitEvent(Schema.EventKind.SYSTEM, `You brace (Guarded).`, null, { actorPlayerId: p.id, targetPlayerId:p.id, roomId: room.id, enemyId }, "personal");
       } else {
-        const missChance = a.type === "skill" ? 0.08 : 0.14;
-        const critChance = a.type === "skill" ? 0.22 : 0.12;
-        const woundChance = a.type === "skill" ? 0.28 : 0.17;
+        let missChance = Math.max(0.05, 1 - (verb.accuracy || 0.8));
+        if (verb.id === "thrust" && (enemy.state.stats.spd || 0) >= 4) missChance += 0.06;
+        if (verb.id === "lacerate" && (enemy.state.stats.def || 0) <= 2) missChance -= 0.05;
+        if (verb.id === "cleave" && (enemy.state.stats.def || 0) >= 4) missChance += 0.04;
+        missChance = Math.min(0.45, Math.max(0.04, missChance));
 
         if (roll(missChance)){
-          this._emitEvent(Schema.EventKind.COMBAT, `Blades whistle past as your strike misses ${enemy.name}.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-          this._emitEvent(Schema.EventKind.COMBAT, `Your attack glances wide.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
+          this._emitEvent(Schema.EventKind.COMBAT, `${verb.name} misses as ${enemy.name} slips the angle.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+          this._emitEvent(Schema.EventKind.COMBAT, `You miss with ${verb.name.toLowerCase()}.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
         } else {
-          let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def);
-          if (a.type === "skill") dmg = Math.round(dmg * 1.7);
-
-          const crit = roll(critChance);
-          if (crit) dmg = Math.round(dmg * 1.8);
+          let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def + (verb.power || 0));
+          if (verb.id === "thrust") dmg += 1;
+          const crit = roll((verb.crit || 0.1));
+          if (crit) dmg = Math.round(dmg * 1.7);
 
           enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
 
-          if (crit){
-            this._emitEvent(Schema.EventKind.COMBAT, `A critical strike lands cleanly on ${enemy.name}!`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-            this._emitEvent(Schema.EventKind.COMBAT, `Critical hit — your blow bites deep.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
-          } else {
-            this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes as your blow drives ${enemy.name} back.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-            this._emitEvent(Schema.EventKind.COMBAT, `Your strike connects.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
-          }
+          this._emitEvent(Schema.EventKind.COMBAT, roomLineByVerb[verb.id] || `You strike ${enemy.name}.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+          this._emitEvent(Schema.EventKind.COMBAT, `You ${verb.name.toLowerCase()} ${enemy.name} for ${dmg} (${enemy.state.hp} HP left).${crit ? " Critical." : ""}`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
 
-          if (enemy.state.hp > 0 && roll(woundChance)) applyWound(enemy, "You", enemy.name, room.id, enemyId);
+          if (enemy.state.hp > 0 && roll(verb.wound || 0)) applyWound(enemy, enemy.name, room.id, enemyId);
+
+          if (enemy.state.hp > 0 && verb.id === "trip" && roll(0.35)){
+            this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} is knocked prone.`, null, { actorPlayerId:p.id, roomId: room.id, enemyId }, "room");
+          }
+          if (enemy.state.hp > 0 && verb.id === "cleave" && roll(0.30)){
+            this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name}'s guard breaks under the swing.`, null, { actorPlayerId:p.id, roomId: room.id, enemyId }, "room");
+          }
           emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
         }
       }
@@ -481,27 +545,43 @@ class GameEngine {
         return;
       }
 
-      const enemyMiss = roll(0.12);
-      if (enemyMiss){
-        this._emitEvent(Schema.EventKind.COMBAT, `${en.name} lunges, but the strike misses wide.`, null, {
+      const enemyVerb = CORE_PHYSICAL_ACTIONS[Math.floor(Math.random() * CORE_PHYSICAL_ACTIONS.length)];
+
+      if (enemyVerb.id === "brace"){
+        en.state._defending = true;
+        this._emitEvent(Schema.EventKind.COMBAT, `${en.name} braces and lowers their center of gravity.`, null, {
           targetPlayerId: pl.id, roomId: r.id, enemyId
         }, "room");
       } else {
-        let edmg = Math.max(1, en.state.stats.atk - pl.stats.def);
-        if (pl._defending) edmg = Math.ceil(edmg * 0.6);
+        let enemyMiss = Math.max(0.05, 1 - (enemyVerb.accuracy || 0.8));
+        if (enemyVerb.id === "thrust" && (pl.stats.spd || 0) >= 4) enemyMiss += 0.05;
+        enemyMiss = Math.min(0.45, Math.max(0.04, enemyMiss));
 
-        const enemyCrit = roll(0.10);
-        if (enemyCrit) edmg = Math.round(edmg * 1.7);
+        if (roll(enemyMiss)){
+          this._emitEvent(Schema.EventKind.COMBAT, `${en.name}'s ${enemyVerb.name.toLowerCase()} misses you by inches.`, null, {
+            targetPlayerId: pl.id, roomId: r.id, enemyId
+          }, "room");
+          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} misses with ${enemyVerb.name.toLowerCase()}.`, null, {
+            targetPlayerId: pl.id, actorPlayerId: pl.id, roomId: r.id, enemyId
+          }, "personal");
+        } else {
+          let edmg = Math.max(1, en.state.stats.atk - pl.stats.def + (enemyVerb.power || 0));
+          if (pl._defending) edmg = Math.ceil(edmg * 0.62);
 
-        pl.hp = Math.max(0, pl.hp - edmg);
+          const enemyCrit = roll(enemyVerb.crit || 0.1);
+          if (enemyCrit) edmg = Math.round(edmg * 1.65);
 
-        this._emitEvent(Schema.EventKind.COMBAT, enemyCrit
-          ? `${en.name} finds an opening and lands a brutal critical blow!`
-          : `${en.name} crashes into your guard with a heavy strike.`, null, {
-          targetPlayerId: pl.id, roomId: r.id, enemyId
-        }, "room");
+          pl.hp = Math.max(0, pl.hp - edmg);
 
-        if (pl.hp > 0 && roll(0.18)) applyWound(pl, en.name, "You", r.id, enemyId);
+          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} answers with ${enemyVerb.name.toLowerCase()} — steel and bone crack in close quarters.`, null, {
+            targetPlayerId: pl.id, roomId: r.id, enemyId
+          }, "room");
+          this._emitEvent(Schema.EventKind.COMBAT, `${en.name} ${enemyVerb.name.toLowerCase()}s you for ${edmg} (${pl.hp} HP left).${enemyCrit ? " Critical." : ""}`, null, {
+            targetPlayerId: pl.id, actorPlayerId: pl.id, roomId: r.id, enemyId
+          }, "personal");
+
+          if (pl.hp > 0 && roll(enemyVerb.wound || 0.15)) applyWound(pl, "You", r.id, enemyId);
+        }
       }
 
       pl._defending = false;
@@ -945,16 +1025,26 @@ const Handlers = {
       const full = Object.keys(orbit.assignments||{}).length >= orbit.slots;
 
       const acts = [
-        { label:"Engage", style:"primary", enabled: !anyEngaged && !youEngagedThis && !full, hint: full?"Crowded":(anyEngaged?"Disengage first":""), intent:{ action:Schema.Action.ENGAGE, targetId: ent.id } },
-        { label:"Disengage", style:"", enabled: youEngagedThis, hint: youEngagedThis?"":"Not engaged", intent:{ action:Schema.Action.DISENGAGE } }
+        { label:"Engage", style:"primary", enabled: !anyEngaged && !youEngagedThis && !full, hint: full?"Crowded":(anyEngaged?"Disengage first":""), menuPath:["Interact","Combat"], intent:{ action:Schema.Action.ENGAGE, targetId: ent.id } },
+        { label:"Disengage", style:"", enabled: youEngagedThis, hint: youEngagedThis?"":"Not engaged", menuPath:["Interact","Combat"], intent:{ action:Schema.Action.DISENGAGE } }
       ];
 
       if (youEngagedThis){
         const hint = isYourTurn ? "" : "Enemy is acting…";
+        const combatPicks = _pickThreeCombatActions(ent.id, turn);
+        for (const pick of combatPicks){
+          acts.push({
+            label: pick.name,
+            style: pick.id === "cleave" ? "primary" : "",
+            enabled: isYourTurn,
+            hint,
+            menuPath:["Physical Attacks","Core Verbs"],
+            intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:pick.id, targetId: ent.id } }
+          });
+        }
         acts.push(
-          { label:"Attack", style:"primary", enabled:isYourTurn, hint, intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"attack", targetId: ent.id } } },
-          { label:"Defend", style:"", enabled:isYourTurn, hint, intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"defend" } } },
-          { label:"Power Strike", style:"", enabled:isYourTurn, hint, intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"skill", targetId: ent.id } } }
+          { label:"Cantrip (soon)", style:"", enabled:false, hint:"Magic catalog comes next phase", menuPath:["Magic","Arcane"], intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:"brace", targetId: ent.id } } },
+          { label:"Use Item (soon)", style:"", enabled:false, hint:"Inventory-use hooks coming next phase", menuPath:["Use","Inventory"], intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:"brace", targetId: ent.id } } }
         );
       }
       return acts;
@@ -979,8 +1069,8 @@ const Handlers = {
       const inCombat = !!ctx.you?.engagedEnemyId;
       if (ent.state.objectType==="chest"){
         return [
-          { label:"Unlock", style:"", enabled: !inCombat && ent.state.locked, hint: inCombat?"In combat":(ent.state.locked?"Requires Rusty Key":"Not locked"), intent:{ action:Schema.Action.UNLOCK, targetId: ent.id } },
-          { label:"Open", style:"primary", enabled: !inCombat && !ent.state.locked && !ent.state.opened, hint: inCombat?"In combat":(ent.state.opened?"Already opened":(ent.state.locked?"Locked":"")), intent:{ action:Schema.Action.OPEN, targetId: ent.id } }
+          { label:"Unlock", style:"", enabled: !inCombat && ent.state.locked, hint: inCombat?"In combat":(ent.state.locked?"Requires Rusty Key":"Not locked"), menuPath:["Interact","Object"], intent:{ action:Schema.Action.UNLOCK, targetId: ent.id } },
+          { label:"Open", style:"primary", enabled: !inCombat && !ent.state.locked && !ent.state.opened, hint: inCombat?"In combat":(ent.state.opened?"Already opened":(ent.state.locked?"Locked":"")), menuPath:["Interact","Object"], intent:{ action:Schema.Action.OPEN, targetId: ent.id } }
         ];
       }
       return [];
@@ -993,7 +1083,7 @@ const Handlers = {
     },
     actions(ent, ctx){
       const inCombat = !!ctx.you?.engagedEnemyId;
-      return [{ label:"Pick Up", style:"primary", enabled: !inCombat, hint: inCombat?"Finish combat first":"", intent:{ action:Schema.Action.PICKUP, targetId: ent.id } }];
+      return [{ label:"Pick Up", style:"primary", enabled: !inCombat, hint: inCombat?"Finish combat first":"", menuPath:["Use","Loot"], intent:{ action:Schema.Action.PICKUP, targetId: ent.id } }];
     }
   }
 };
@@ -1020,6 +1110,7 @@ class App {
 
     // transient ambient action-sound dedupe
     this._lastAmbientActionSoundKey = null;
+    this._lastRoomId = null;
 
     this.engine.connect(this.playerId, this.playerName);
 
@@ -1159,8 +1250,9 @@ class App {
     if (!ctx) return;
 
     document.getElementById("youPill").textContent = ctx.you?.name || "—";
+    document.getElementById("roomPanelTitle").textContent = ctx.room.name;
     document.getElementById("roomTitle").textContent = ctx.room.name;
-    document.getElementById("roomFlavor").textContent = ctx.room.flavor;
+    this._renderRoomFlavor(ctx.room);
 
     this.renderRoomPanel();
     this.renderGroups();
@@ -1173,9 +1265,11 @@ class App {
   renderGroups(){
     const ctx = this.ctx;
     const root = document.getElementById("entityGroups");
+    const compassRoot = document.getElementById("compassMount") || root;
     root.innerHTML = "";
+    if (compassRoot && compassRoot !== root) compassRoot.innerHTML = "";
 
-    this.renderCompass(root, ctx);
+    this.renderCompass(compassRoot, ctx);
 
     const entities = Object.values(ctx.room.entities);
     const doorObjects = Object.values(ctx.room.entities)
@@ -1341,8 +1435,9 @@ class App {
     const xpNext = you.xpNext ?? 200;
     const lvl = you.lvl ?? 1;
     document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | LVL ${lvl} | XP ${xp}/${xpNext}`;
+    document.getElementById("roomPanelTitle").textContent = ctx.room.name;
     document.getElementById("roomTitle").textContent = ctx.room.name;
-    document.getElementById("roomFlavor").textContent = ctx.room.flavor;
+    this._renderRoomFlavor(ctx.room);
 
     const feedEl = document.getElementById("roomFeed");
     const events = this.store.events.slice(-1200);
@@ -1404,6 +1499,62 @@ class App {
     feedEl.innerHTML = entries.join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
 
     if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
+  }
+
+  _renderRoomFlavor(room){
+    const flavorEl = document.getElementById("roomFlavor");
+    if (!flavorEl || !room) return;
+    flavorEl.textContent = room.flavor || "";
+    const changed = this._lastRoomId !== room.id;
+    flavorEl.classList.remove("roomFlavor--enter");
+    if (changed){
+      void flavorEl.offsetWidth;
+      flavorEl.classList.add("roomFlavor--enter");
+      this._lastRoomId = room.id;
+    }
+  }
+
+  _menuPathForAction(action){
+    if (Array.isArray(action?.menuPath) && action.menuPath.length) return action.menuPath;
+    const intentAction = action?.intent?.action;
+    if (intentAction === Schema.Action.QUEUE_ACTION) return ["Physical Attacks", "Core Verbs"];
+    if (intentAction === Schema.Action.ENGAGE || intentAction === Schema.Action.DISENGAGE) return ["Interact", "Combat"];
+    if (intentAction === Schema.Action.UNLOCK || intentAction === Schema.Action.OPEN || intentAction === Schema.Action.UNLOCK_DOOR || intentAction === Schema.Action.OPEN_DOOR || intentAction === Schema.Action.CLOSE_DOOR) return ["Interact", "Environment"];
+    if (intentAction === Schema.Action.PICKUP) return ["Use", "Loot"];
+    if (intentAction === Schema.Action.TRAVEL || intentAction === Schema.Action.SCOUT_NEXT) return ["Interact", "Movement"];
+    return ["Interact", "General"];
+  }
+
+  _renderActionDropdown(actions){
+    const tree = new Map();
+    for (let i=0;i<actions.length;i++){
+      const a = actions[i];
+      const path = this._menuPathForAction(a);
+      const top = path[0] || "Actions";
+      const sub = path[1] || "General";
+      if (!tree.has(top)) tree.set(top, new Map());
+      const subMap = tree.get(top);
+      if (!subMap.has(sub)) subMap.set(sub, []);
+      subMap.get(sub).push({ idx:i, action:a });
+    }
+
+    let html = `<div class="actionMenu"><div class="menuNode"><button class="menuBtn" type="button">Actions ▾</button><div class="submenu">`;
+    for (const [cat, subMap] of tree.entries()){
+      html += `<div class="menuNode"><button class="menuBtn" type="button">${escapeHtml(cat)} ▸</button><div class="submenu">`;
+      for (const [sub, rows] of subMap.entries()){
+        html += `<div class="menuNode"><button class="menuBtn" type="button">${escapeHtml(sub)} ▸</button><div class="submenu">`;
+        for (const row of rows){
+          const a = row.action;
+          const disabled = a.enabled ? "" : "disabled";
+          const title = a.enabled ? "" : (a.hint || "Unavailable");
+          html += `<button class="menuItemBtn" data-act="${row.idx}" ${disabled} title="${escapeAttr(title)}">${escapeHtml(a.label)}</button>`;
+        }
+        html += `</div></div>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `</div></div></div>`;
+    return html;
   }
 
   renderAmbientStateLine(roomEvents, room, nowTimeLabel){
@@ -1515,9 +1666,9 @@ class App {
       };
 
       actions = [
-        { label:"Unlock", style:"", enabled: !inCombat && exists && locked, hint: inCombat?"In combat":(exists ? (locked?"Requires Rusty Key":"Not locked") : "Door missing"), intent:{ action:Schema.Action.UNLOCK_DOOR, targetId: ent.state.exitId } },
-        { label:"Open", style:"", enabled: !inCombat && exists && !locked && !open, hint: inCombat?"In combat":(exists ? (locked?"Locked":(open?"Already open":"")) : "Door missing"), intent:{ action:Schema.Action.OPEN_DOOR, targetId: ent.state.exitId } },
-        { label:"Close", style:"", enabled: !inCombat && exists && open, hint: inCombat?"In combat":(exists ? (open?"":"Already closed") : "Door missing"), intent:{ action:Schema.Action.CLOSE_DOOR, targetId: ent.state.exitId } }
+        { label:"Unlock", style:"", enabled: !inCombat && exists && locked, hint: inCombat?"In combat":(exists ? (locked?"Requires Rusty Key":"Not locked") : "Door missing"), menuPath:["Interact","Door"], intent:{ action:Schema.Action.UNLOCK_DOOR, targetId: ent.state.exitId } },
+        { label:"Open", style:"", enabled: !inCombat && exists && !locked && !open, hint: inCombat?"In combat":(exists ? (locked?"Locked":(open?"Already open":"")) : "Door missing"), menuPath:["Interact","Door"], intent:{ action:Schema.Action.OPEN_DOOR, targetId: ent.state.exitId } },
+        { label:"Close", style:"", enabled: !inCombat && exists && open, hint: inCombat?"In combat":(exists ? (open?"":"Already closed") : "Door missing"), menuPath:["Interact","Door"], intent:{ action:Schema.Action.CLOSE_DOOR, targetId: ent.state.exitId } }
       ];
     }
 
@@ -1537,21 +1688,12 @@ class App {
       parts.push(`<div class="bar bad"><div style="width:${pct}%;"></div></div>`);
     }
 
-    parts.push(`<div style="font-weight:1000">Actions</div>`);
-    parts.push(`<div class="actions">`);
+    parts.push(`<div class="actionsHeader">Actions</div>`);
     if (!actions.length){
-      parts.push(`<span class="muted" style="font-size:12px">No actions available.</span>`);
+      parts.push(`<div class="actions"><span class="muted" style="font-size:12px">No actions available.</span></div>`);
     } else {
-      for (let i=0;i<actions.length;i++){
-        const a = actions[i];
-        const cls=["btn","small"];
-        if (a.style==="primary") cls.push("primary");
-        const disabled = a.enabled ? "" : "disabled";
-        const title = a.enabled ? "" : (a.hint||"Unavailable");
-        parts.push(`<button class="${cls.join(" ")}" data-act="${i}" ${disabled} title="${escapeAttr(title)}">${escapeHtml(a.label)}</button>`);
-      }
+      parts.push(this._renderActionDropdown(actions));
     }
-    parts.push(`</div>`);
 
     parts.push(`<details class="inspectorDetails"><summary>Details</summary>`);
     for (const sec of kvSecs){
