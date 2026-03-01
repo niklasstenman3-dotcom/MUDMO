@@ -1,0 +1,8 @@
+id: door_oak
+name: Oak Door
+archetypes: [wood_structure, lockable_door]
+components:
+  integrity: { max: 120, current: 120, fracture_threshold: 45 }
+  lockable: { locked: true, lock_quality: 8 }
+  movable: { mass: 140, friction: 0.95, anchored: true }
+tags: [door, structure]
