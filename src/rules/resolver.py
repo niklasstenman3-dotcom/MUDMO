@@ -28,7 +28,7 @@ def _has_requirements(actor: Entity, requires: list[str]) -> bool:
     skills = actor.components.get("skills")
     data = skills.data if skills else {}
     for req in requires:
-        if data.get(req, 0) <= 0:
+        if data.get(req, data.get(req.replace('tool_', 'weapon_'), 0)) <= 0:
             return False
     return True
 
@@ -152,7 +152,7 @@ def resolve_action(
         if target.has_component("integrity"):
             mult = 1.0
             if target.status("cracked"):
-                mult = float(statuses.get("cracked", {}).get("mods", {}).get("incoming_damage_mult", 1.25))
+                mult = float(statuses.get("cracked", {}).get("mods", {}).get("incoming_integrity_damage_mult", statuses.get("cracked", {}).get("mods", {}).get("incoming_damage_mult", 1.25)))
             i_dmg = max(1, int((delta if delta > 0 else 1) // 2 * mult))
             target.comp("integrity")["current"] = max(0, target.comp("integrity")["current"] - i_dmg)
             out.changes["integrity_damage"] = i_dmg
@@ -160,7 +160,7 @@ def resolve_action(
         if target.has_component("lockable"):
             if intent in {"unlock", "separate", "force_mechanism"}:
                 if tier == "critical" or delta > target.comp("lockable").get("lock_quality", 5):
-                    target.comp("lockable")["is_locked"] = False
+                    target.comp("lockable")["locked"] = False
                     out.changes["unlocked"] = True
                 elif tier == "partial":
                     out.changes["lock_stressed"] = True
@@ -170,12 +170,12 @@ def resolve_action(
             out.changes["integrity_damage"] = i_dmg
     elif kind == "manipulation":
         if intent == "open":
-            if target.has_component("lockable") and target.comp("lockable").get("is_locked", False):
+            if target.has_component("lockable") and target.comp("lockable").get("locked", False):
                 out.fail_reason = "locked"
                 out.tier = "fail"
                 out.success = False
             elif target.has_component("openable"):
-                target.comp("openable")["is_open"] = True
+                target.comp("openable")["open"] = True
                 out.success = True
                 out.tier = "solid"
                 out.changes["opened"] = True
@@ -185,7 +185,7 @@ def resolve_action(
                 lockwork = actor.components.get("skills", None)
                 lockwork_val = (lockwork.data.get("lockwork", 0) if lockwork else 0)
                 if lockwork_val + base_power >= lock_q:
-                    target.comp("lockable")["is_locked"] = False
+                    target.comp("lockable")["locked"] = False
                     out.success = True
                     out.tier = "solid"
                     out.changes["unlocked"] = True
@@ -194,7 +194,7 @@ def resolve_action(
                     out.tier = "fail"
                     out.fail_reason = "lockwork_too_low"
         elif intent == "bar" and target.has_component("barrable"):
-            target.comp("barrable")["is_barred"] = True
+            target.comp("barrable")["barred"] = True
             out.success = True
             out.tier = "solid"
             out.changes["barred"] = True
@@ -225,11 +225,12 @@ def resolve_action(
                 out.statuses_applied.append(rec)
 
     # default status from verb
-    if tier in {"partial", "solid", "critical"} and effect.get("applies_status"):
-        intensity = int(effect.get("status_intensity", 1))
+    status_hit = effect.get("status_on_hit")
+    if tier in {"partial", "solid", "critical"} and status_hit:
+        intensity = int(status_hit.get("intensity", 1))
         if tier == "critical":
             intensity += 1
-        rec = _apply_status(target, effect["applies_status"], intensity, statuses)
+        rec = _apply_status(target, status_hit.get("id"), intensity, statuses)
         if rec:
             out.statuses_applied.append(rec)
 

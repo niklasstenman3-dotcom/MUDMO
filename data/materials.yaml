@@ -1,45 +1,11 @@
 wood:
-  resist:
-    edge: 0.3
-    blunt: 0.1
-    pierce: 0.4
-    torsion: 0.2
-    displacement: 0.2
-    control: 0.2
-    manipulation: 0.2
-    perception: 0.0
-  ono:
-    edge_hit: "SKT!"
-    blunt_hit: "THK!"
-    pierce_hit: "THK!"
-    break: "KRK!"
+  resist: { edge: 0.3, blunt: 0.1, pierce: 0.4, torsion: 0.2 }
+  ono: { edge_hit: "SKT!", blunt_hit: "THK!", pierce_hit: "THK!", break: "KRK!" }
+
 iron:
-  resist:
-    edge: 0.8
-    blunt: 0.3
-    pierce: 0.9
-    torsion: 0.7
-    displacement: 0.5
-    control: 0.5
-    manipulation: 0.5
-    perception: 0.0
-  ono:
-    edge_hit: "KLANG!"
-    blunt_hit: "DONG!"
-    pierce_hit: "KLANG!"
-    break: "KRRNNG!"
+  resist: { edge: 0.8, blunt: 0.3, pierce: 0.9, torsion: 0.6 }
+  ono: { edge_hit: "KLANG!", blunt_hit: "DONG!", pierce_hit: "TINK!", break: "KRRNNG!" }
+
 flesh:
-  resist:
-    edge: 0.0
-    blunt: 0.0
-    pierce: 0.0
-    torsion: 0.1
-    displacement: 0.1
-    control: 0.0
-    manipulation: 0.0
-    perception: 0.0
-  ono:
-    edge_hit: "SKRCH!"
-    blunt_hit: "THUD!"
-    pierce_hit: "THK!"
-    break: "CRK!"
+  resist: { edge: 0.0, blunt: 0.0, pierce: 0.0, torsion: 0.0 }
+  ono: { edge_hit: "SKRCH!", blunt_hit: "THUD!", pierce_hit: "THK!" }

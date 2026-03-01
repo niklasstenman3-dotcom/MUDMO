@@ -5,11 +5,11 @@ from src.core.registry import Registry
 from src.rules.resolver import resolve_action
 
 
-def test_slice_vs_iron_door_less_than_bash():
+def test_slice_vs_iron_less_effective_than_bash():
     reg = Registry(Path('.')).load_all()
     ctx = SimContext()
-    player = reg.load_entity('data/entities/samples/player.yaml')
-    chest = reg.load_entity('data/entities/samples/chest_iron.yaml')
+    player = reg.load_entity('data/entities/player.yaml')
+    chest = reg.load_entity('data/entities/objects/chest_iron.yaml')
     ctx.add(player)
     ctx.add(chest)
 

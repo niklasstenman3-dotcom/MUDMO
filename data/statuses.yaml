@@ -1,62 +1,67 @@
 bleeding:
-  applies_to: [anatomy]
+  applies_to_components:
+  - anatomy
+  - combatant
   stacking: intensity
-  cap_intensity: 5
+  intensity_cap: 5
   tick:
     every_time: 1.0
     hp_damage_per_intensity: 1
   clears:
-    on_actions: [bind, rest]
-    min_intensity_to_persist: 1
-
+    reduce_on_actions:
+      bind: 2
+      rest: 1
 off_balance:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
   duration_time: 2.0
   mods:
     poise_mult: 0.8
-  clears:
-    on_actions: [brace, steady]
-
 prone:
-  applies_to: [combatant]
-  stacking: refresh
-  duration_time: 2.0
-  mods:
-    poise_mult: 0.7
-
+  applies_to_components:
+  - combatant
+  stacking: none
+  clears_on_actions:
+  - stand
 restrained:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
-  duration_time: 2.0
-
+  duration_time: 3.0
 pinned:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
   duration_time: 2.0
-
 dazed:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
   duration_time: 1.5
-
 stunned:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
   duration_time: 1.0
-
 winded:
-  applies_to: [combatant]
+  applies_to_components:
+  - combatant
   stacking: refresh
   duration_time: 2.0
-
 cracked:
-  applies_to: [integrity]
-  stacking: refresh
+  applies_to_components:
+  - integrity
+  stacking: none
+  derived_from_integrity_threshold: true
   mods:
-    incoming_damage_mult: 1.25
-
+    incoming_integrity_damage_mult: 1.25
 jammed:
-  applies_to: [lockable, openable]
+  applies_to_components:
+  - lockable
+  - openable
   stacking: refresh
-  duration_time: 4.0
+  duration_time: 5.0
+  clears_on_actions:
+  - wrench
+  - pry

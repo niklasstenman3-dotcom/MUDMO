@@ -8,8 +8,8 @@ from src.rules.resolver import resolve_action
 def run_repl(root: str = "."):
     reg = Registry(Path(root)).load_all()
     ctx = SimContext()
-    ctx.add(reg.load_entity("data/entities/samples/player.yaml"))
-    ctx.add(reg.load_entity("data/entities/samples/bandit.yaml"))
+    ctx.add(reg.load_entity("data/entities/player.yaml"))
+    ctx.add(reg.load_entity("data/entities/enemies/bandit.yaml"))
 
     print("Global verb REPL. format: actor verb target")
     while True:
