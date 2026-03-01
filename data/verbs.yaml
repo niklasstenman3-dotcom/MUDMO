@@ -1,0 +1,146 @@
+slice:
+  requires: [tool_edge]
+  cost: { stamina: 6, time: 1.0, noise: 0.2 }
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 10
+    applies_status: bleeding
+    status_intensity: 1
+  targets:
+    needs_any_of: [integrity, combatant, anatomy]
+cleave:
+  requires: [tool_edge]
+  cost: { stamina: 9, time: 1.2, noise: 0.35 }
+  effect:
+    kind: edge
+    intent: break_guard
+    base_power: 13
+    applies_status: off_balance
+    status_intensity: 1
+  targets:
+    needs_any_of: [integrity, combatant, anatomy]
+thrust:
+  requires: [tool_point]
+  cost: { stamina: 5, time: 1.0, noise: 0.2 }
+  effect:
+    kind: pierce
+    intent: puncture
+    base_power: 11
+    applies_status: bleeding
+    status_intensity: 1
+  targets:
+    needs_any_of: [integrity, combatant, anatomy]
+bash:
+  requires: [tool_blunt]
+  cost: { stamina: 7, time: 1.1, noise: 0.4 }
+  effect:
+    kind: blunt
+    intent: smash
+    base_power: 12
+    applies_status: dazed
+    status_intensity: 1
+  targets:
+    needs_any_of: [integrity, combatant]
+shove:
+  requires: []
+  cost: { stamina: 4, time: 0.8, noise: 0.25 }
+  effect:
+    kind: displacement
+    intent: reposition
+    base_power: 8
+    applies_status: off_balance
+    status_intensity: 1
+  targets:
+    needs_any_of: [movable, combatant]
+grapple:
+  requires: []
+  cost: { stamina: 8, time: 1.3, noise: 0.25 }
+  effect:
+    kind: control
+    intent: restrain
+    base_power: 9
+    applies_status: restrained
+    status_intensity: 1
+  targets:
+    needs_any_of: [combatant, anatomy]
+trip:
+  requires: []
+  cost: { stamina: 5, time: 0.9, noise: 0.2 }
+  effect:
+    kind: displacement
+    intent: destabilize
+    base_power: 9
+    applies_status: prone
+    status_intensity: 1
+  targets:
+    needs_any_of: [combatant, movable]
+brace:
+  requires: []
+  cost: { stamina: 3, time: 0.7, noise: 0.1 }
+  effect:
+    kind: control
+    intent: stabilize
+    base_power: 7
+    applies_status: anchored
+    status_intensity: 1
+  targets:
+    needs_any_of: [combatant, movable]
+wrench:
+  requires: [tool_leverage]
+  cost: { stamina: 8, time: 1.4, noise: 0.3 }
+  effect:
+    kind: torsion
+    intent: force_mechanism
+    base_power: 12
+    applies_status: jammed
+    status_intensity: 1
+  targets:
+    needs_any_of: [lockable, openable, integrity]
+pry:
+  requires: [tool_leverage]
+  cost: { stamina: 8, time: 2.0, noise: 0.4 }
+  effect:
+    kind: torsion
+    intent: separate
+    base_power: 12
+    applies_status: jammed
+    status_intensity: 1
+  targets:
+    needs_any_of: [lockable, openable, integrity]
+unlock:
+  requires: []
+  cost: { stamina: 2, time: 0.8, noise: 0.1 }
+  effect:
+    kind: manipulation
+    intent: unlock
+    base_power: 7
+  targets:
+    needs_any_of: [lockable]
+open:
+  requires: []
+  cost: { stamina: 1, time: 0.5, noise: 0.1 }
+  effect:
+    kind: manipulation
+    intent: open
+    base_power: 5
+  targets:
+    needs_any_of: [openable]
+bar:
+  requires: []
+  cost: { stamina: 3, time: 1.0, noise: 0.2 }
+  effect:
+    kind: manipulation
+    intent: bar
+    base_power: 5
+  targets:
+    needs_any_of: [barrable]
+observe:
+  requires: []
+  cost: { stamina: 0, time: 0.6, noise: 0.0 }
+  effect:
+    kind: perception
+    intent: observe
+    base_power: 5
+  targets:
+    needs_any_of: [integrity, combatant, lockable, openable, anatomy]
