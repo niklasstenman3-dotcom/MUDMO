@@ -1405,7 +1405,8 @@ class App {
   }
 
   renderAmbientStateLine(roomEvents, room, nowTimeLabel){
-    const recent = roomEvents.slice(-14);
+    const recent = roomEvents.slice(-18);
+    const hasActiveCombat = Object.values(room?.combats || {}).some(c => Object.keys(c?.engaged || {}).length > 0);
 
     const soundTokenFor = (text) => {
       const low = String(text || "").toLowerCase();
@@ -1417,55 +1418,36 @@ class App {
       return null;
     };
 
+    const newestCombat = [...recent].reverse().find(e => e.kind === Schema.EventKind.COMBAT);
+    if (hasActiveCombat && newestCombat && (U.now() - (newestCombat.ts || 0)) < 1800){
+      const low = String(newestCombat.text || "").toLowerCase();
+      const pick = (arr) => arr[(Number(newestCombat.ts) || U.now()) % arr.length];
+      const lead = low.includes("critical") ? pick(["KRANG", "SKRAK", "KRAANG"])
+        : low.includes("miss") ? pick(["WHIFF", "SWISH", "FWIP"])
+        : pick(["CLANG", "KLANG", "CLASH"]);
+      const tail = low.includes("miss") ? pick(["swish", "hiss", "whip"]) : pick(["clink", "tink", "chink"]);
+      return `<div class="rfMsg rf-ambient-state is-combat"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText"><span class="rfActionSound">${escapeHtml(lead)}</span><span class="rfStateSep"> … </span><span class="rfStateToken rfStateToken--soft">${escapeHtml(tail)}</span>.</div></div>`;
+    }
+
+    if (hasActiveCombat) return null;
+
     const steadyByRoom = {
-      catacombs: ["drip", "shift", "drip", "wind"],
+      catacombs: ["drip", "shift", "wind", "clink"],
       road: ["wind", "shift", "clink", "wind"],
-      forest: ["wind", "shift", "wind", "clink"],
-      village: ["wind", "clink", "wind", "shift"]
+      forest: ["wind", "shift", "clink", "wind"],
+      village: ["wind", "clink", "shift", "wind"]
     };
 
     const steady = steadyByRoom[room?.defId] || ["wind", "shift", "clink", "wind"];
-    const phase = Math.floor(U.now() / 1600) % steady.length;
+    const phase = Math.floor(U.now() / 3200) % steady.length; // slower drift
     const rotatedSteady = steady.map((_, i) => steady[(i + phase) % steady.length]);
 
-    const recentTokens = recent.map(e => soundTokenFor(e.text)).filter(Boolean);
+    const recentTokens = recent.map(e => soundTokenFor(e.text)).filter(Boolean).slice(-1);
+    const lead = recentTokens[0] || rotatedSteady[0];
+    const tail = rotatedSteady.find(t => t !== lead) || rotatedSteady[1] || "wind";
 
-    const sequence = [];
-    const pushToken = (tok) => {
-      if (!tok) return;
-      if (!sequence.length || sequence[sequence.length - 1] !== tok){
-        sequence.push(tok);
-        return;
-      }
-      const fallback = rotatedSteady.find(t => t !== tok && t !== sequence[sequence.length - 1]);
-      if (fallback) sequence.push(fallback);
-    };
-
-    for (const tok of rotatedSteady) pushToken(tok);
-    for (const tok of recentTokens.slice(-3)) pushToken(tok);
-
-    const newestImpact = [...recent].reverse().find(e => {
-      const low = String(e?.text || "").toLowerCase();
-      return low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes") || low.includes("crack");
-    });
-    if (newestImpact && (U.now() - (newestImpact.ts || 0)) < 3500){
-      sequence[2] = "CLANG";
-    }
-
-    const line = sequence.slice(-4);
-    while (line.length < 4){
-      line.push(rotatedSteady[line.length % rotatedSteady.length]);
-    }
-
-    const lastNarrative = recent.length ? String(recent[recent.length - 1].text || "").trim() : room?.flavor || "The room settles back into its steady rhythm.";
-    const explain = escapeHtml(lastNarrative.replace(/\s+/g, " ").slice(0, 110));
-
-    const renderedTokens = line.map((tok, idx) => {
-      const cls = tok === "CLANG" ? "rfStateToken rfStateToken--impact" : "rfStateToken rfStateToken--soft";
-      return `${idx > 0 ? '<span class="rfStateSep"> … </span>' : ''}<span class="${cls}">${escapeHtml(tok)}</span>`;
-    }).join("");
-
-    return `<div class="rfMsg rf-ambient-state"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText">${renderedTokens}<span class="rfStateExplain"> — ${explain}</span></div></div>`;
+    const rendered = `<span class="rfStateToken rfStateToken--soft">${escapeHtml(lead)}</span><span class="rfStateSep"> … </span><span class="rfStateToken rfStateToken--soft">${escapeHtml(tail)}</span>.`;
+    return `<div class="rfMsg rf-ambient-state"><div class="rfTime">${escapeHtml(nowTimeLabel)}</div><div class="rfText">${rendered}</div></div>`;
   }
 
   renderInspector(){
