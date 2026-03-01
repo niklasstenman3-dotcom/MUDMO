@@ -1,5 +1,3 @@
-import { escapeHtml } from "./schema.js";
-
 export const ThemeBg = Object.freeze({
   road: `radial-gradient(900px 500px at 30% 35%, rgba(255,255,255,.08), transparent 55%),
          radial-gradient(800px 420px at 70% 65%, rgba(122,168,255,.10), transparent 60%),
@@ -262,10 +260,9 @@ export function renderMiniMapSVG(currentRoomId){
     svg += `<g ${isActive ? `filter="url(#glow)"` : ""}>`;
     svg += `<circle cx="${p.px}" cy="${p.py}" r="${r}" fill="${isActive ? activeFill : roomFill}" stroke="${isActive ? activeStroke : roomStroke}" stroke-width="3"/>`;
     svg += `</g>`;
-    svg += `<text x="${p.px + 18}" y="${p.py + 5}" fill="rgba(255,255,255,.78)" font-size="13" font-family="ui-sans-serif, system-ui">${escapeHtml(n.label)}</text>`;
+    // Keep the minimap iconographic: no room-name labels in-panel.
   }
 
   svg += `</svg>`;
   return svg;
 }
-
