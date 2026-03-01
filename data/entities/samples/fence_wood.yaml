@@ -1,0 +1,13 @@
+id: fence_wood
+name: Wood Fence
+material_primary: wood
+tags: [structure]
+components:
+  integrity:
+    max: 90
+    current: 90
+    fracture_threshold: 30
+  movable:
+    mass: 100
+    friction: 0.8
+    anchored: true
