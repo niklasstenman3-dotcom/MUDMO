@@ -3,67 +3,56 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>MVP MMORPG UI (Working Content)</title>
-    <link rel="stylesheet" href="assets/css/app.css"/>
-
+  <title>MVP MMORPG UI</title>
+  <meta name="description" content="Client mount points for the modular MMORPG UI."/>
+  <link rel="stylesheet" href="assets/css/app.css"/>
 </head>
-
 <body>
-<div class="app">
-  <div class="top">
-    <div class="panel">
-      <div class="hdr"><div class="title">Entities</div><div class="pill">Local</div></div>
-      <div class="content" id="entityGroups"></div>
-    </div>
+  <div class="app" data-version="v1">
+    <div class="top">
+      <div class="panel">
+        <div class="hdr"><div class="title">Entities</div><div class="pill">Mount</div></div>
+        <div class="content" id="entityGroups"><div class="muted">Loading entities…</div></div>
+      </div>
 
-    <div class="panel roomPanel">
-      <div class="hdr"><div class="title">Room</div><div class="pill" id="youPill">—</div></div>
-      <div class="content roomContent">
-        <div class="statusStrip" id="statusStrip">HP — | LVL — | XP —</div>
-        <div class="roomHeader">
-          <div class="roomName" id="roomTitle">—</div>
-          <div class="roomFlavor" id="roomFlavor">—</div>
-          <div class="roomSel muted">Selected: <span id="selectedName">None</span></div>
-          <div class="roomLegend">
-            <span class="lg enter">Enter</span><span class="lg ambient">Ambient</span><span class="lg presence">Presence</span>
-            <span class="lg move">Move</span><span class="lg clash">Combat</span><span class="lg condition">Condition</span><span class="lg death">Death</span>
+      <div class="panel roomPanel">
+        <div class="hdr"><div class="title">Room</div><div class="pill" id="youPill">—</div></div>
+        <div class="content roomContent">
+          <div class="statusStrip" id="statusStrip">Loading status…</div>
+          <div class="roomHeader">
+            <div class="roomName" id="roomTitle">Loading room…</div>
+            <div class="roomFlavor" id="roomFlavor">Awaiting state…</div>
+            <div class="roomSel muted">Selected: <span id="selectedName">None</span></div>
           </div>
+          <div class="roomFeed" id="roomFeed"><div class="muted">Waiting for room events…</div></div>
         </div>
         <div class="roomFeed" id="roomFeed"></div>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="hdr"><div class="title">Inspector</div><div class="pill" id="selKindPill">—</div></div>
-      <div class="content" id="inspector"><div class="muted">Select an entity to see details and actions.</div></div>
-    </div>
-  </div>
-
-  <div class="bottom">
-    <div class="panel">
-      <div class="hdr"><div class="title">Map</div><div class="pill" id="mapPill">Local</div></div>
-      <div class="mapBox">
-        <div class="mapSvgWrap" id="minimap"></div>
+      <div class="panel">
+        <div class="hdr"><div class="title">Inspector</div><div class="pill" id="selKindPill">—</div></div>
+        <div class="content" id="inspector"><div class="muted">Waiting for selection…</div></div>
       </div>
     </div>
 
-    <div class="panel stream">
-      <div class="hdr"><div class="title">Personal</div><div class="pill">You</div></div>
-      <div class="streamBody" id="logStream"></div>
-    </div>
-
-    <div class="panel stream">
-      <div class="hdr"><div class="title">Chat</div><div class="pill">Room</div></div>
-      <div class="streamBody" id="chatStream"></div>
-      <div class="inputRow">
-        <input id="chatInput" placeholder="Type chat (Enter)…"/>
-        <button class="btn" id="sendChat">Send</button>
+    <div class="bottom">
+      <div class="panel">
+        <div class="hdr"><div class="title">Map</div><div class="pill" id="mapPill">Mount</div></div>
+        <div class="mapBox">
+          <div class="mapSvgWrap" id="minimap"><div class="muted">Loading map…</div></div>
+        </div>
+      </div>
+      <div class="panel stream chatWide">
+        <div class="hdr"><div class="title">Chat</div><div class="pill">Room</div></div>
+        <div class="streamBody" id="chatStream"><div class="muted">No chat messages yet.</div></div>
+        <div class="inputRow">
+          <input id="chatInput" placeholder="Type chat (Enter)…"/>
+          <button class="btn" id="sendChat" type="button">Send</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<script type="module" src="assets/js/app.js"></script>
-
+  <script type="module" src="assets/js/app.js"></script>
 </body>
 </html>

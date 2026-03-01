@@ -346,7 +346,27 @@ class GameEngine {
 
     const a = combat.actions?.[actorPid] || { type:"attack", targetId: enemyId };
 
-    // log your action first (personal)
+    const roll = (chance) => Math.random() < chance;
+    const applyWound = (target, sourceName, targetName, roomIdForEvent, enemyIdForEvent) => {
+      const current = target.state?.wound || target.wound || null;
+      const wound = { ticks: 3, dmg: 2 };
+      if (target.state) target.state.wound = wound;
+      else target.wound = wound;
+      if (!current){
+        this._emitEvent(Schema.EventKind.SYSTEM, `${targetName} starts bleeding from a deep cut.`, null, { roomId: roomIdForEvent, enemyId: enemyIdForEvent }, "room");
+      }
+    };
+    const tickWound = (holder, isEnemy, holderName, roomIdForEvent, enemyIdForEvent) => {
+      const wound = isEnemy ? holder.state?.wound : holder.wound;
+      if (!wound || wound.ticks <= 0) return 0;
+      const dmg = Math.max(1, wound.dmg || 1);
+      if (isEnemy) holder.state.hp = Math.max(0, holder.state.hp - dmg);
+      else holder.hp = Math.max(0, holder.hp - dmg);
+      wound.ticks -= 1;
+      this._emitEvent(Schema.EventKind.SYSTEM, `${holderName} bleeds as the wound reopens.`, null, { roomId: roomIdForEvent, enemyId: enemyIdForEvent }, "room");
+      return dmg;
+    };
+
     const prevEnemyHp = enemy.state.hp;
     const emitEnemyStateNarrative = (beforeHp, afterHp) => {
       const max = enemy.state.hpMax || 1;
@@ -364,33 +384,54 @@ class GameEngine {
       }
     };
 
-    if (a.type === "defend"){
-      p._defending = true;
-      this._emitEvent(Schema.EventKind.SYSTEM, `You brace for impact.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id }, "personal");
-    } else {
-      let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def);
-      if (a.type === "skill") dmg = Math.round(dmg * 1.8);
-      enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
+    // Existing wounds tick before the actor commits an action.
+    tickWound(enemy, true, enemy.name, room.id, enemyId);
 
-      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
-      this._emitEvent(Schema.EventKind.COMBAT, `You hit ${enemy.name} for ${dmg} (${enemy.state.hp} HP left).`, null, {
-        actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId
-      }, "personal");
+    if (enemy.state.hp > 0){
+      if (a.type === "defend"){
+        p._defending = true;
+        this._emitEvent(Schema.EventKind.SYSTEM, `You raise your guard and brace for impact.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId, targetPlayerId:p.id }, "personal");
+      } else {
+        const missChance = a.type === "skill" ? 0.08 : 0.14;
+        const critChance = a.type === "skill" ? 0.22 : 0.12;
+        const woundChance = a.type === "skill" ? 0.28 : 0.17;
 
-      emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
+        if (roll(missChance)){
+          this._emitEvent(Schema.EventKind.COMBAT, `Blades whistle past as your strike misses ${enemy.name}.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+          this._emitEvent(Schema.EventKind.COMBAT, `Your attack glances wide.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
+        } else {
+          let dmg = Math.max(1, p.stats.atk - enemy.state.stats.def);
+          if (a.type === "skill") dmg = Math.round(dmg * 1.7);
+
+          const crit = roll(critChance);
+          if (crit) dmg = Math.round(dmg * 1.8);
+
+          enemy.state.hp = Math.max(0, enemy.state.hp - dmg);
+
+          if (crit){
+            this._emitEvent(Schema.EventKind.COMBAT, `A critical strike lands cleanly on ${enemy.name}!`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+            this._emitEvent(Schema.EventKind.COMBAT, `Critical hit — your blow bites deep.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
+          } else {
+            this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes as your blow drives ${enemy.name} back.`, null, { actorPlayerId: p.id, roomId: room.id, enemyId }, "room");
+            this._emitEvent(Schema.EventKind.COMBAT, `Your strike connects.`, null, { actorPlayerId: p.id, targetPlayerId: p.id, roomId: room.id, enemyId }, "personal");
+          }
+
+          if (enemy.state.hp > 0 && roll(woundChance)) applyWound(enemy, "You", enemy.name, room.id, enemyId);
+          emitEnemyStateNarrative(prevEnemyHp, enemy.state.hp);
+        }
+      }
     }
 
     delete combat.actions[actorPid];
 
-    // enemy dead -> loot -> focus
     if (enemy.state.hp <= 0){
       const loot = this._spawnLoot(`${enemy.name} Coin`, "common");
       room.entities[loot.id] = loot;
 
-      this._emitEvent(Schema.EventKind.SYSTEM, `The ${enemy.name} collapses.`, null, {
+      this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} staggers, then collapses into the dust.`, null, {
         roomId: room.id, enemyId, focusEntityId: loot.id
       }, "room");
-      this._emitEvent(Schema.EventKind.SYSTEM, `You defeated ${enemy.name}. Loot dropped: ${loot.name}.`, null, {
+      this._emitEvent(Schema.EventKind.SYSTEM, `Victory. ${enemy.name} is defeated and drops ${loot.name}.`, null, {
         actorPlayerId: actorPid, targetPlayerId: actorPid, roomId: room.id, enemyId, focusEntityId: loot.id
       }, "personal");
 
@@ -399,6 +440,7 @@ class GameEngine {
         if (!pp) continue;
         pp._defending = false;
         pp.engagedEnemyId = null;
+        pp.wound = null;
         const gainedXp = 25;
         pp.xp = (pp.xp || 0) + gainedXp;
         while (pp.xp >= (pp.xpNext || 200)){
@@ -418,7 +460,6 @@ class GameEngine {
       return;
     }
 
-    // enemy phase: disable buttons on client
     combat.turn.phase = "enemy";
     combat.turn.busyUntil = U.now() + 550;
     this._broadcastState();
@@ -430,17 +471,38 @@ class GameEngine {
       const pl = this.state.players[actorPid];
       if (!r || !c || !en || !pl) return;
 
-      let edmg = Math.max(1, en.state.stats.atk - pl.stats.def);
-      if (pl._defending) edmg = Math.ceil(edmg * 0.6);
+      tickWound(pl, false, "You", r.id, enemyId);
+      if (pl.hp <= 0){
+        this._emitEvent(Schema.EventKind.SYSTEM, `You collapse from your wounds.`, null, {
+          targetPlayerId: pl.id, roomId: r.id, enemyId
+        });
+        this._disengage(pl.id);
+        this._broadcastState();
+        return;
+      }
 
-      pl.hp = Math.max(0, pl.hp - edmg);
+      const enemyMiss = roll(0.12);
+      if (enemyMiss){
+        this._emitEvent(Schema.EventKind.COMBAT, `${en.name} lunges, but the strike misses wide.`, null, {
+          targetPlayerId: pl.id, roomId: r.id, enemyId
+        }, "room");
+      } else {
+        let edmg = Math.max(1, en.state.stats.atk - pl.stats.def);
+        if (pl._defending) edmg = Math.ceil(edmg * 0.6);
 
-      this._emitEvent(Schema.EventKind.COMBAT, `Steel clashes in the dust.`, null, {
-        targetPlayerId: pl.id, roomId: r.id, enemyId
-      }, "room");
-      this._emitEvent(Schema.EventKind.COMBAT, `${en.name} hits You for ${edmg} (${pl.hp} HP left).`, null, {
-        targetPlayerId: pl.id, roomId: r.id, enemyId
-      }, "personal");
+        const enemyCrit = roll(0.10);
+        if (enemyCrit) edmg = Math.round(edmg * 1.7);
+
+        pl.hp = Math.max(0, pl.hp - edmg);
+
+        this._emitEvent(Schema.EventKind.COMBAT, enemyCrit
+          ? `${en.name} finds an opening and lands a brutal critical blow!`
+          : `${en.name} crashes into your guard with a heavy strike.`, null, {
+          targetPlayerId: pl.id, roomId: r.id, enemyId
+        }, "room");
+
+        if (pl.hp > 0 && roll(0.18)) applyWound(pl, en.name, "You", r.id, enemyId);
+      }
 
       pl._defending = false;
 
@@ -1226,9 +1288,10 @@ class App {
     const makeBtn = (dir, label, cellClass) => {
       const ex = exitsByDir[dir] || null;
       const btn = document.createElement("button");
-      btn.className = `compassBtn ${cellClass}`;
+      btn.className = `compassBtn dir-${dir} ${cellClass}`;
       btn.type = "button";
-      btn.textContent = label;
+      btn.setAttribute("aria-label", label);
+      btn.innerHTML = `<span class="compassLetter">${escapeHtml(label[0])}</span>`;
       btn.disabled = !ex;
       if (ex){
         btn.title = ex.state.toRoomName || ex.state.toRoomId || titleCase(dir);
@@ -1256,7 +1319,8 @@ class App {
 
     const center = document.createElement("div");
     center.className = "compassCenter cellCenter";
-    center.textContent = "You";
+    center.setAttribute("aria-hidden", "true");
+    center.textContent = "";
     grid.appendChild(center);
 
     grid.appendChild(makeBtn("east", "East", "cellEast"));
@@ -1341,44 +1405,62 @@ class App {
   }
 
   renderAmbientStateLine(roomEvents, room, nowTimeLabel){
-    const recent = roomEvents.slice(-10);
+    const recent = roomEvents.slice(-14);
 
     const soundTokenFor = (text) => {
       const low = String(text || "").toLowerCase();
       if (low.includes("drip")) return "drip";
       if (low.includes("wind")) return "wind";
-      if (low.includes("shift") || low.includes("skitter") || low.includes("rustle")) return "shift";
-      if (low.includes("clink") || low.includes("taps") || low.includes("knock")) return "clink";
-      if (low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes")) return "CLANG";
+      if (low.includes("shift") || low.includes("skitter") || low.includes("rustle") || low.includes("gravel")) return "shift";
+      if (low.includes("clink") || low.includes("taps") || low.includes("knock") || low.includes("jingle")) return "clink";
+      if (low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes") || low.includes("crack")) return "CLANG";
       return null;
     };
 
     const steadyByRoom = {
       catacombs: ["drip", "shift", "drip", "wind"],
-      road: ["wind", "shift", "wind", "wind"],
-      forest: ["wind", "shift", "wind", "shift"],
-      village: ["wind", "clink", "wind", "clink"]
+      road: ["wind", "shift", "clink", "wind"],
+      forest: ["wind", "shift", "wind", "clink"],
+      village: ["wind", "clink", "wind", "shift"]
     };
 
-    const steady = steadyByRoom[room?.defId] || ["wind", "shift", "wind", "wind"];
+    const steady = steadyByRoom[room?.defId] || ["wind", "shift", "clink", "wind"];
+    const phase = Math.floor(U.now() / 1600) % steady.length;
+    const rotatedSteady = steady.map((_, i) => steady[(i + phase) % steady.length]);
+
     const recentTokens = recent.map(e => soundTokenFor(e.text)).filter(Boolean);
-    const base = recentTokens.length ? recentTokens.slice(-3) : steady.slice(0, 3);
 
-    const impactIndex = [...recent].reverse().findIndex(e => {
+    const sequence = [];
+    const pushToken = (tok) => {
+      if (!tok) return;
+      if (!sequence.length || sequence[sequence.length - 1] !== tok){
+        sequence.push(tok);
+        return;
+      }
+      const fallback = rotatedSteady.find(t => t !== tok && t !== sequence[sequence.length - 1]);
+      if (fallback) sequence.push(fallback);
+    };
+
+    for (const tok of rotatedSteady) pushToken(tok);
+    for (const tok of recentTokens.slice(-3)) pushToken(tok);
+
+    const newestImpact = [...recent].reverse().find(e => {
       const low = String(e?.text || "").toLowerCase();
-      return low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes");
+      return low.includes("rattle") || low.includes("clang") || low.includes("rings") || low.includes("slams") || low.includes("steel clashes") || low.includes("crack");
     });
-    const hasRecentImpact = impactIndex > -1 && impactIndex < 3;
+    if (newestImpact && (U.now() - (newestImpact.ts || 0)) < 3500){
+      sequence[2] = "CLANG";
+    }
 
-    const sequence = [...base];
-    while (sequence.length < 4) sequence.push(steady[sequence.length % steady.length]);
-    sequence.length = 4;
-    if (hasRecentImpact) sequence[2] = "CLANG";
+    const line = sequence.slice(-4);
+    while (line.length < 4){
+      line.push(rotatedSteady[line.length % rotatedSteady.length]);
+    }
 
     const lastNarrative = recent.length ? String(recent[recent.length - 1].text || "").trim() : room?.flavor || "The room settles back into its steady rhythm.";
     const explain = escapeHtml(lastNarrative.replace(/\s+/g, " ").slice(0, 110));
 
-    const renderedTokens = sequence.map((tok, idx) => {
+    const renderedTokens = line.map((tok, idx) => {
       const cls = tok === "CLANG" ? "rfStateToken rfStateToken--impact" : "rfStateToken rfStateToken--soft";
       return `${idx > 0 ? '<span class="rfStateSep"> … </span>' : ''}<span class="${cls}">${escapeHtml(tok)}</span>`;
     }).join("");
@@ -1493,22 +1575,12 @@ class App {
   }
 
   renderStreams(){
-    const logEl = document.getElementById("logStream");
     const chatEl = document.getElementById("chatStream");
-    const events = this.store.events.slice(-800);
+    if (!chatEl) return;
 
+    const events = this.store.events.slice(-800);
     const chats = events.filter(e => e.kind === Schema.EventKind.CHAT);
 
-    const logs = events.filter(e => {
-      if (e.kind !== Schema.EventKind.SYSTEM && e.kind !== Schema.EventKind.COMBAT) return false;
-      const aud = e.audience || "both";
-      if (aud !== "personal" && aud !== "both") return false;
-      const a = e.payload?.actorPlayerId;
-      const t = e.payload?.targetPlayerId;
-      return (a === this.playerId) || (t === this.playerId);
-    });
-
-    const logWasAtBottom = (logEl.scrollTop + logEl.clientHeight) >= (logEl.scrollHeight - 8);
     const chatWasAtBottom = (chatEl.scrollTop + chatEl.clientHeight) >= (chatEl.scrollHeight - 8);
 
     const fmtTime = (ms) => {
@@ -1517,16 +1589,6 @@ class App {
       const mm = String(d.getMinutes()).padStart(2,"0");
       return `${hh}:${mm}`;
     };
-
-    logEl.innerHTML = logs.map(e => {
-      const time = fmtTime(e.ts);
-      const who = e.payload?.actorPlayerId===this.playerId ? "You" : "Them";
-      return `<div class="msg">
-        <div class="time">${escapeHtml(time)}</div>
-        <div class="who">${escapeHtml(who)}</div>
-        <div class="text">${escapeHtml(e.text)}</div>
-      </div>`;
-    }).join("");
 
     chatEl.innerHTML = chats.map(e => {
       const time = fmtTime(e.ts);
@@ -1539,9 +1601,8 @@ class App {
         <div class="who">${escapeHtml(who)}</div>
         <div class="text">${escapeHtml(text)}</div>
       </div>`;
-    }).join("");
+    }).join("") || `<div class="muted">No chat messages yet.</div>`;
 
-    if (logWasAtBottom) logEl.scrollTop = logEl.scrollHeight;
     if (chatWasAtBottom) chatEl.scrollTop = chatEl.scrollHeight;
   }
 }
