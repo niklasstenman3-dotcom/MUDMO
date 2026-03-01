@@ -1199,6 +1199,47 @@ class App {
     return room.entities[entityId] || this._getDoorProxyFromId(entityId, ctx);
   }
 
+  _defaultSelectionId(ctx=this.ctx){
+    const room = ctx?.room;
+    const you = ctx?.you;
+    if (!room || !you) return null;
+
+    const entities = Object.values(room.entities || {});
+
+    const engagedEnemy = entities.find(ent => ent.kind === Schema.EntityKind.ENEMY && ent.id === you.engagedEnemyId);
+    if (engagedEnemy) return engagedEnemy.id;
+
+    const firstEnemy = entities.find(ent => ent.kind === Schema.EntityKind.ENEMY);
+    if (firstEnemy) return firstEnemy.id;
+
+    const firstClosedDoorExit = entities.find(ent => {
+      if (ent.kind !== Schema.EntityKind.EXIT) return false;
+      const gate = ent.state?.gate || { type:"open" };
+      if (gate.type !== "door" || !gate.doorId) return false;
+      const door = room.doors?.[gate.doorId] || null;
+      return !!door && (!door.open || door.locked);
+    });
+    if (firstClosedDoorExit) return this._doorProxyIdForExitId(firstClosedDoorExit.id);
+
+    const firstChest = entities.find(ent => ent.kind === Schema.EntityKind.OBJECT && ent.state?.objectType === "chest");
+    if (firstChest) return firstChest.id;
+
+    const firstExit = entities.find(ent => ent.kind === Schema.EntityKind.EXIT);
+    if (firstExit) return firstExit.id;
+
+    return null;
+  }
+
+  _ensureSelectedEntity(){
+    const ctx = this.ctx;
+    if (!ctx?.room) return;
+
+    const existing = this.selectedEntityId ? this._getSelectableEntity(this.selectedEntityId, ctx) : null;
+    if (existing) return;
+
+    this.selectedEntityId = this._defaultSelectionId(ctx);
+  }
+
   focusEntity(entityId, opts={openLoot:false, scrollLoot:false}){
     const ctx = this.ctx;
     if (!ctx) return;
@@ -1233,15 +1274,40 @@ class App {
     });
   }
 
+  _buildMiniMapNode(roomId){
+    const svgMarkup = renderMiniMapSVG(roomId);
+    const tpl = document.createElement("template");
+    tpl.innerHTML = String(svgMarkup || "").trim();
+    const svg = tpl.content.firstElementChild;
+    if (svg && String(svg.tagName || "").toLowerCase() === "svg") return svg;
+    return null;
+  }
+
   renderMiniMap(){
     const ctx = this.ctx;
     if (!ctx) return;
-    document.getElementById("minimap").innerHTML = renderMiniMapSVG(ctx.room.id);
+
+    const mount = document.getElementById("minimap");
+    if (!mount) return;
+
+    const svgNode = this._buildMiniMapNode(ctx.room.id);
+    if (!svgNode){
+      mount.replaceChildren();
+      const fallback = document.createElement("div");
+      fallback.className = "muted";
+      fallback.textContent = "Map unavailable.";
+      mount.appendChild(fallback);
+      return;
+    }
+
+    mount.replaceChildren(svgNode);
   }
 
   render(){
     const ctx = this.ctx;
     if (!ctx) return;
+
+    this._ensureSelectedEntity();
 
     document.getElementById("youPill").textContent = ctx.you?.name || "—";
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
