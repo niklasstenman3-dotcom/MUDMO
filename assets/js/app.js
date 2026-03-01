@@ -1,22 +1,78 @@
 import { Schema, U, escapeHtml, escapeAttr, titleCase } from "./config/schema.js";
 import { ThemeBg, RoomDefs, renderMiniMapSVG } from "./config/world.js";
+import { BrowserData, CombatActions } from "./config/game-data.js";
 import { ensureSpawns } from "./engine/systems/spawn-system.js";
 import { pickRandomFrom, emitRoomAmbient, roomHasActiveCombat } from "./engine/systems/ambient-system.js";
 
 
-const CORE_PHYSICAL_ACTIONS = [
-  { id:"lacerate", name:"Lacerate", category:"Physical Attacks", family:"Core", accuracy:0.88, power:0, crit:0.10, wound:0.34, tags:["bleed","unarmored"] },
-  { id:"cleave", name:"Cleave", category:"Physical Attacks", family:"Core", accuracy:0.74, power:3, crit:0.12, wound:0.12, tags:["guardBreak","slow","armor"] },
-  { id:"thrust", name:"Thrust", category:"Physical Attacks", family:"Core", accuracy:0.84, power:1, crit:0.11, wound:0.16, tags:["pierce","guard"] },
-  { id:"bash", name:"Bash", category:"Physical Attacks", family:"Core", accuracy:0.80, power:2, crit:0.08, wound:0.08, tags:["daze","armor"] },
-  { id:"shove", name:"Shove", category:"Physical Attacks", family:"Core", accuracy:0.83, power:1, crit:0.06, wound:0.05, tags:["offBalance"] },
-  { id:"grapple", name:"Grapple", category:"Physical Attacks", family:"Core", accuracy:0.72, power:1, crit:0.05, wound:0.03, tags:["restrain"] },
-  { id:"trip", name:"Trip", category:"Physical Attacks", family:"Core", accuracy:0.79, power:1, crit:0.06, wound:0.04, tags:["prone"] },
-  { id:"brace", name:"Brace", category:"Physical Attacks", family:"Core", accuracy:1, power:0, crit:0, wound:0, tags:["defend"] },
-  { id:"wrench", name:"Wrench", category:"Physical Attacks", family:"Core", accuracy:0.75, power:2, crit:0.09, wound:0.18, tags:["injure"] }
-];
+const _deepClone = (obj) => JSON.parse(JSON.stringify(obj || {}));
+
+const _mergeObjects = (base, overlay) => {
+  const out = _deepClone(base);
+  for (const [k, v] of Object.entries(overlay || {})){
+    if (v && typeof v === "object" && !Array.isArray(v)){
+      out[k] = _mergeObjects(out[k] || {}, v);
+    } else {
+      out[k] = _deepClone(v);
+    }
+  }
+  return out;
+};
+
+const _entityTemplateFromData = (entityDefId) => {
+  const ent = BrowserData.entities?.[entityDefId];
+  if (!ent) return null;
+
+  let merged = {};
+  for (const archId of (ent.archetypes || [])){
+    const arch = BrowserData.archetypes?.[archId] || {};
+    merged = _mergeObjects(merged, arch);
+  }
+  merged = _mergeObjects(merged, ent);
+  return merged;
+};
+
+const _toRuntimeStats = (combatant = {}) => ({
+  atk: Math.max(1, Math.round((Number(combatant.hp_max || combatant.hp || 50) / 10) + (Number(combatant.guard || 0) / 10))),
+  def: Math.max(1, Math.round((Number(combatant.guard_max || combatant.guard || 10) / 8))),
+  spd: Math.max(1, Math.round((Number(combatant.speed || 10) / 3)))
+});
+
+const CORE_PHYSICAL_ACTIONS = Object.freeze((CombatActions || []).map(a => ({
+  ...a,
+  category: a.category || "Global Verbs",
+  family: a.family || "Data"
+})));
 
 const CORE_PHYSICAL_BY_ID = Object.fromEntries(CORE_PHYSICAL_ACTIONS.map(a=>[a.id,a]));
+const DEFAULT_VERB_ID = CORE_PHYSICAL_BY_ID.thrust ? "thrust" : (CORE_PHYSICAL_ACTIONS[0]?.id || "bash");
+
+
+const OBJECT_TEMPLATE_IDS = Object.freeze({
+  chest: "chest_iron",
+  door: "door_oak",
+  fence: "fence_wood"
+});
+
+const _stateFromObjectTemplate = (objectType, overrides = {}) => {
+  const tplId = OBJECT_TEMPLATE_IDS[objectType];
+  const tpl = tplId ? _entityTemplateFromData(tplId) : null;
+  const lockable = tpl?.components?.lockable || {};
+  const openable = tpl?.components?.openable || {};
+  const integrity = tpl?.components?.integrity || {};
+
+  return {
+    objectType,
+    locked: Object.prototype.hasOwnProperty.call(overrides, "locked") ? !!overrides.locked : !!lockable.locked,
+    opened: Object.prototype.hasOwnProperty.call(overrides, "opened") ? !!overrides.opened : !!openable.open,
+    integrity: {
+      max: Number(integrity.max || integrity.current || 0),
+      current: Number(integrity.current || integrity.max || 0)
+    },
+    materials: tpl?.materials || null,
+    components: tpl?.components || null
+  };
+};
 
 function _seedFromText(text){
   let h = 2166136261;
@@ -42,12 +98,12 @@ function _pickThreeCombatActions(enemyId, turn){
 }
 
 function _legacyActionToVerb(a){
-  if (!a) return { type:"verb", verbId:"thrust" };
+  if (!a) return { type:"verb", verbId:DEFAULT_VERB_ID };
   if (a.type === "verb" && CORE_PHYSICAL_BY_ID[a.verbId]) return a;
   if (a.type === "defend") return { type:"verb", verbId:"brace" };
-  if (a.type === "skill") return { type:"verb", verbId:"cleave", targetId:a.targetId };
-  if (a.type === "attack") return { type:"verb", verbId:"thrust", targetId:a.targetId };
-  return { type:"verb", verbId:"thrust", targetId:a.targetId };
+  if (a.type === "skill") return { type:"verb", verbId:CORE_PHYSICAL_BY_ID.cleave ? "cleave" : DEFAULT_VERB_ID, targetId:a.targetId };
+  if (a.type === "attack") return { type:"verb", verbId:DEFAULT_VERB_ID, targetId:a.targetId };
+  return { type:"verb", verbId:DEFAULT_VERB_ID, targetId:a.targetId };
 }
 
 /* ---------------- Engine ---------------- */
@@ -125,21 +181,32 @@ class GameEngine {
           id: objId,
           kind: Schema.EntityKind.OBJECT,
           name: o.name,
-          state: { objectType:o.objectType, locked:!!o.locked, opened:false }
+          state: _stateFromObjectTemplate(o.objectType, { locked:o.locked, opened:false })
         };
       }
     }
   }
 
   _spawnEnemy(rule){
+    const tpl = _entityTemplateFromData(rule.defId);
+    const combatant = tpl?.components?.combatant || {};
+    const hpMax = Number(rule.hp || combatant.hp_max || combatant.hp || 50);
+    const stats = _toRuntimeStats(combatant);
+
+    if (Number(rule.atk) > 0) stats.atk = Number(rule.atk);
+    if (Number(rule.def) > 0) stats.def = Number(rule.def);
+    if (Number(rule.spd) > 0) stats.spd = Number(rule.spd);
+
     return {
       id:"enemy_"+U.uid(),
       kind:Schema.EntityKind.ENEMY,
-      name:rule.name,
+      name:tpl?.name || rule.name,
       state:{
         enemyDefId:rule.defId,
-        hp:rule.hp, hpMax:rule.hp,
-        stats:{atk:rule.atk, def:rule.def, spd:rule.spd},
+        hp:hpMax, hpMax,
+        stats,
+        materials: tpl?.materials || null,
+        components: tpl?.components || null,
         orbit:{ slots:6, assignments:{} }
       }
     };
@@ -171,12 +238,18 @@ class GameEngine {
   }
 
   _newPlayer(id, name){
+    const tpl = _entityTemplateFromData("player") || {};
+    const combatant = tpl?.components?.combatant || {};
+    const hpMax = Number(combatant.hp_max || combatant.hp || 80);
+
     return {
       id, name,
       roomId:"room_1",
-      hp:60, hpMax:60,
+      hp:hpMax, hpMax,
       lvl:1, xp:0, xpNext:200,
-      stats:{atk:10, def:4, spd:4},
+      stats:_toRuntimeStats(combatant),
+      materials: tpl?.materials || null,
+      components: tpl?.components || null,
       engagedEnemyId:null,
       inventory:[],
       _defending:false
@@ -1499,7 +1572,8 @@ class App {
     document.getElementById("roomTitle").textContent = "Area Chronicle";
     this._renderRoomFlavor(ctx.room);
 
-    const feedEl = document.getElementById("roomFeed");
+    const feedEl = document.querySelector(".roomPanel #roomFeed") || document.getElementById("roomFeed");
+    if (!feedEl) return;
     const events = this.store.events.slice(-1200);
     const roomId = ctx.room.id;
     const roomEvents = events.filter(e => {
@@ -1557,6 +1631,15 @@ class App {
     if (ambientState) entries.push(ambientState);
 
     feedEl.innerHTML = entries.join("") || `<div class="muted" style="font-size:12px">No room events yet.</div>`;
+
+    const mapFeed = document.getElementById("mapFeed");
+    if (mapFeed){
+      const preview = roomEvents.slice(-2).map(e => {
+        const time = fmtTime(e.ts);
+        return `<div class="rfMsg"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
+      }).join("");
+      mapFeed.innerHTML = preview || `<div class="muted">Map feed idle…</div>`;
+    }
 
     if (wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
   }
