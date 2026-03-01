@@ -1,0 +1,33 @@
+id: player
+name: Player
+material_primary: flesh
+tags: [actor]
+affordances: [same_room]
+components:
+  combatant:
+    hp: 70
+    hp_max: 70
+    stamina: 50
+    stamina_max: 50
+    poise: 20
+    poise_max: 20
+    guard: 12
+    guard_max: 12
+    speed: 6
+  anatomy:
+    limbs: { head: healthy, torso: healthy, arm_l: healthy, arm_r: healthy, leg_l: healthy, leg_r: healthy }
+    bleed_tolerance: 12
+    injury_slots: 4
+  movable:
+    mass: 82
+    friction: 0.6
+    anchored: false
+  skills:
+    tool_edge: 2
+    tool_blunt: 1
+    tool_point: 2
+    tool_leverage: 1
+    athletics: 3
+    grappling: 2
+    perception: 2
+    lockwork: 2
