@@ -302,6 +302,8 @@
       left:100%;
       top:-1px;
       min-width:190px;
+      max-height:260px;
+      overflow:auto;
       padding:2px;
       border:1px solid #4a3f30;
       background:#18150f;
@@ -312,6 +314,8 @@
       left:0;
       top:100%;
     }
+    .inspectorPanel .actionMenu > .menuNode > .submenu{left:auto; right:0;}
+    .inspectorPanel .submenu{left:auto; right:100%;}
     .menuNode:hover > .submenu,
     .menuNode:focus-within > .submenu{display:block;}
 
@@ -406,6 +410,9 @@
       overflow:hidden;
     }
     .mapSvgWrap svg{ width:100%; height:100%; display:block; }
+
+.mapPanel .mapBox{position:relative; min-height:0;}
+    .mapPanel .mapSvgWrap{position:relative; z-index:1;}
 
     /* Compass directions */
     .compassWrap{

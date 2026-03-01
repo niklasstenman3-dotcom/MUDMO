@@ -1251,7 +1251,7 @@ class App {
 
     document.getElementById("youPill").textContent = ctx.you?.name || "—";
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
-    document.getElementById("roomTitle").textContent = ctx.room.name;
+    document.getElementById("roomTitle").textContent = "Area Chronicle";
     this._renderRoomFlavor(ctx.room);
 
     this.renderRoomPanel();
@@ -1436,7 +1436,7 @@ class App {
     const lvl = you.lvl ?? 1;
     document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | LVL ${lvl} | XP ${xp}/${xpNext}`;
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
-    document.getElementById("roomTitle").textContent = ctx.room.name;
+    document.getElementById("roomTitle").textContent = "Area Chronicle";
     this._renderRoomFlavor(ctx.room);
 
     const feedEl = document.getElementById("roomFeed");
