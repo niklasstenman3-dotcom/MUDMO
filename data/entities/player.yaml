@@ -1,0 +1,12 @@
+id: player
+name: Player
+archetypes: [humanoid]
+tags: [actor]
+affordances: [same_room]
+components:
+  combatant: { hp_max: 80, hp: 80, stamina_max: 80, stamina: 80, poise_max: 35, poise: 35, guard_max: 25, guard: 25, speed: 12 }
+  skills: { weapon_edge: 5, weapon_blunt: 4, weapon_point: 2, athletics: 4, grappling: 3, perception: 4, lockwork: 2, tool_edge: 1, tool_blunt: 1, tool_point: 1, tool_leverage: 1 }
+  equipment:
+    weapon: club_01
+    armor:
+      torso: leather_vest

@@ -1,0 +1,19 @@
+humanoid:
+  materials: { primary: flesh }
+  components:
+    combatant: { hp_max: 60, hp: 60, stamina_max: 60, stamina: 60, poise_max: 25, poise: 25, guard_max: 15, guard: 15, speed: 10 }
+    anatomy: { limbs: [head, torso, left_arm, right_arm, left_leg, right_leg], bleed_tolerance: 20, choke_tolerance: 8 }
+    skills: { weapon_edge: 0, weapon_blunt: 0, weapon_point: 0, athletics: 0, grappling: 0, perception: 0, lockwork: 0, tool_edge: 0, tool_blunt: 0, tool_point: 0, tool_leverage: 0 }
+    movable: { mass: 80, friction: 0.6, anchored: false }
+
+wood_structure:
+  materials: { primary: wood }
+  components:
+    integrity: { max: 80, current: 80, fracture_threshold: 25 }
+    movable: { mass: 120, friction: 0.9, anchored: true }
+
+lockable_door:
+  components:
+    openable: { open: false }
+    lockable: { locked: true, lock_quality: 8 }
+    barrable: { barred: false }

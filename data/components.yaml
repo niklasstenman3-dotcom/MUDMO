@@ -1,0 +1,22 @@
+integrity:
+  fields: [max, current, fracture_threshold]
+combatant:
+  fields: [hp_max, hp, stamina_max, stamina, poise_max, poise, guard_max, guard, speed]
+anatomy:
+  fields: [limbs, bleed_tolerance, choke_tolerance]
+movable:
+  fields: [mass, friction, anchored]
+openable:
+  fields: [open]
+lockable:
+  fields: [locked, lock_quality]
+barrable:
+  fields: [barred]
+container:
+  fields: [capacity, contents]
+climbable:
+  fields: [difficulty, height]
+equipment:
+  fields: [weapon, armor]
+skills:
+  fields: [weapon_edge, weapon_blunt, weapon_point, athletics, grappling, perception, lockwork, tool_edge, tool_blunt, tool_point, tool_leverage]
