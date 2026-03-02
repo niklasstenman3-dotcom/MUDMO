@@ -1,0 +1,2120 @@
+pound:
+  requires: []
+  cost:
+    stamina: 7
+    time: 1.0
+    noise: 0.35
+  effect:
+    kind: blunt
+    intent: impact
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: dazed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+crush:
+  requires: []
+  cost:
+    stamina: 7
+    time: 1.0
+    noise: 0.35
+  effect:
+    kind: blunt
+    intent: impact
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: dazed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+slam:
+  requires: []
+  cost:
+    stamina: 7
+    time: 1.0
+    noise: 0.35
+  effect:
+    kind: blunt
+    intent: impact
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: dazed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+ram:
+  requires: []
+  cost:
+    stamina: 7
+    time: 1.0
+    noise: 0.35
+  effect:
+    kind: blunt
+    intent: impact
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: dazed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+bash:
+  requires:
+  - tool_blunt
+  cost:
+    stamina: 7
+    time: 1.0
+    noise: 0.35
+  effect:
+    kind: blunt
+    intent: impact
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: dazed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+slice:
+  requires:
+  - tool_edge
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.25
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+cleave:
+  requires:
+  - tool_edge
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.25
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+carve:
+  requires:
+  - tool_edge
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.25
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+sever:
+  requires:
+  - tool_edge
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.25
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+shred:
+  requires:
+  - tool_edge
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.25
+  effect:
+    kind: edge
+    intent: cut
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+thrust:
+  requires:
+  - tool_point
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.22
+  effect:
+    kind: pierce
+    intent: penetrate
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+pierce:
+  requires:
+  - tool_point
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.22
+  effect:
+    kind: pierce
+    intent: penetrate
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+impale:
+  requires:
+  - tool_point
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.22
+  effect:
+    kind: pierce
+    intent: penetrate
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+probe:
+  requires:
+  - tool_point
+  cost:
+    stamina: 6
+    time: 1.0
+    noise: 0.22
+  effect:
+    kind: pierce
+    intent: penetrate
+    base_power: 11
+    damage:
+      hp: 9
+      integrity: 7
+    status_on_hit:
+      id: bleeding
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+pry:
+  requires:
+  - tool_leverage
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+wrench:
+  requires:
+  - tool_leverage
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+torque:
+  requires:
+  - tool_leverage
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+bend:
+  requires: []
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+snap:
+  requires: []
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+jam:
+  requires: []
+  cost:
+    stamina: 8
+    time: 1.0
+    noise: 0.3
+  effect:
+    kind: torsion
+    intent: twist
+    base_power: 12
+    damage:
+      hp: 10
+      integrity: 8
+    status_on_hit:
+      id: jammed
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - anatomy
+    - openable
+    - lockable
+    - barrable
+    - movable
+shove:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+pull:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+drag:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+lift:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+drop:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+flip:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+throw:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+hook:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.24
+  effect:
+    kind: displacement
+    intent: move_target
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+grapple:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+pin:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+restrain:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+release:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+trip:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+choke:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+brace:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: winded
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+guard:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: winded
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+block:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: winded
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+parry:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: winded
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+disarm:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+interrupt:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: restrained
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+unbalance:
+  requires: []
+  cost:
+    stamina: 5
+    time: 1.0
+    noise: 0.2
+  effect:
+    kind: control
+    intent: control
+    base_power: 9
+    damage:
+      hp: 7
+      integrity: 5
+    status_on_hit:
+      id: off_balance
+      stacking: intensity
+      intensity: 1
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - combatant
+    - movable
+    - anatomy
+open:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: open
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+close:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: close
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+lock:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: lock
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+unlock:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: unlock
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+bar:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: bar
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+seal:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: seal
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+fasten:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: fasten
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+anchor:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: anchor
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+tie:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: tie
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+attach:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: attach
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+insert:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: insert
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+remove:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: remove
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+pour:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: pour
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+light:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: light
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+extinguish:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: extinguish
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+sharpen:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: sharpen
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+reinforce:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: reinforce
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+dismantle:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: dismantle
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+assemble:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: assemble
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+place:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: place
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+take:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: take
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+use:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: use
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+activate:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: activate
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+deactivate:
+  requires: []
+  cost:
+    stamina: 2
+    time: 0.7
+    noise: 0.1
+  effect:
+    kind: manipulation
+    intent: deactivate
+    base_power: 7
+    damage:
+      hp: 5
+      integrity: 3
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - openable
+    - lockable
+    - barrable
+    - container
+    - integrity
+move:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+walk:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+run:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+sprint:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+retreat:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+advance:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+climb:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+descend:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+leap:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+crawl:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+swim:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+mount:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+dismount:
+  requires: []
+  cost:
+    stamina: 4
+    time: 0.8
+    noise: 0.15
+  effect:
+    kind: displacement
+    intent: movement
+    base_power: 8
+    damage:
+      hp: 6
+      integrity: 4
+  constraints:
+    range: melee
+  targets:
+    needs_any_of:
+    - movable
+    - combatant
+observe:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+inspect:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+examine:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+gauge:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+assess:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+study:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+track:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+listen:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+smell:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+feel:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+check:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
+search:
+  requires: []
+  cost:
+    stamina: 0
+    time: 0.6
+    noise: 0.0
+  effect:
+    kind: perception
+    intent: sense
+    base_power: 5
+    damage:
+      hp: 3
+      integrity: 1
+  constraints:
+    range: near
+  targets:
+    needs_any_of:
+    - integrity
+    - combatant
+    - lockable
+    - openable
+    - anatomy
+    - container
