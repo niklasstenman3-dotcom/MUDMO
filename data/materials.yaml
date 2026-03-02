@@ -1,0 +1,11 @@
+wood:
+  resist: { edge: 0.3, blunt: 0.1, pierce: 0.4, torsion: 0.2 }
+  ono: { edge_hit: "SKT!", blunt_hit: "THK!", pierce_hit: "THK!", break: "KRK!" }
+
+iron:
+  resist: { edge: 0.8, blunt: 0.3, pierce: 0.9, torsion: 0.6 }
+  ono: { edge_hit: "KLANG!", blunt_hit: "DONG!", pierce_hit: "TINK!", break: "KRRNNG!" }
+
+flesh:
+  resist: { edge: 0.0, blunt: 0.0, pierce: 0.0, torsion: 0.0 }
+  ono: { edge_hit: "SKRCH!", blunt_hit: "THUD!", pierce_hit: "THK!" }
