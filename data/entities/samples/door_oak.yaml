@@ -1,0 +1,20 @@
+id: door_oak
+name: Oak Door
+material_primary: wood
+tags: [structure]
+components:
+  integrity:
+    max: 120
+    current: 120
+    fracture_threshold: 45
+  openable:
+    is_open: false
+  lockable:
+    is_locked: true
+    lock_quality: 7
+  barrable:
+    is_barred: false
+  movable:
+    mass: 140
+    friction: 0.95
+    anchored: true
