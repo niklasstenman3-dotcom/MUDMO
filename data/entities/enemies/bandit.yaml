@@ -1,0 +1,19 @@
+id: bandit_01
+name: "Roadside Bandit"
+archetypes: [humanoid]
+components:
+  combatant: { hp_max: 65, hp: 65, stamina_max: 60, stamina: 60, poise_max: 30, poise: 30, guard_max: 20, guard: 20, speed: 12 }
+  skills: { weapon_blunt: 5, athletics: 3, grappling: 3, perception: 3, tool_blunt: 1 }
+  equipment:
+    weapon: club_01
+    armor:
+      torso: leather_vest
+ai:
+  weights: { assess: 0.2, bash: 0.4, shove: 0.2, grapple: 0.1, guard: 0.1 }
+  rules:
+    - if: "target.status.prone"
+      prefer: [crush, cleave]
+    - if: "self.stamina_pct < 0.2"
+      prefer: [guard, retreat]
+    - if: "self.hp_pct < 0.18"
+      do: retreat
