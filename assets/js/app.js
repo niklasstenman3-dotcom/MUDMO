@@ -437,9 +437,45 @@ class GameEngine {
 
   _emitOutcome(room, actorPid, outcome, targetPayload={}){
     const lines = outcome?.lines?.length ? outcome.lines : ["Nothing happens."];
-    for (const line of lines){
+    const ono = outcome?.sound?.ono || "";
+    for (const raw of lines){
+      const line = ono && !String(raw).includes("!") ? `${ono} ${raw}` : raw;
       this._emitEvent(Schema.EventKind.SYSTEM, line, null, { actorPlayerId: actorPid, roomId: room.id, ...targetPayload }, "room");
     }
+  }
+
+  _emitHealthStateNarrative(room, entityName, beforeHp, afterHp, hpMax, payload={}){
+    if (!hpMax || afterHp <= 0) return;
+    const b = (beforeHp / hpMax) * 100;
+    const a = (afterHp / hpMax) * 100;
+    const cuts = [
+      { t:75, msg:`${entityName} is faltering.` },
+      { t:40, msg:`${entityName} is badly wounded.` },
+      { t:15, msg:`${entityName} is near death.` },
+    ];
+    for (const c of cuts){
+      if (b > c.t && a <= c.t){
+        this._emitEvent(Schema.EventKind.SYSTEM, c.msg, null, { roomId: room.id, ...payload }, "room");
+      }
+    }
+  }
+
+  _handleEnemyDefeat(room, enemyId, actorPid){
+    const enemy = room.entities?.[enemyId];
+    if (!enemy || enemy.kind !== Schema.EntityKind.ENEMY) return;
+
+    this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} is defeated.`, null, { actorPlayerId: actorPid, roomId: room.id, enemyId }, "room");
+
+    const loot = this._spawnLoot(`${enemy.name} Loot`, "common");
+    room.entities[loot.id] = loot;
+    this._emitEvent(Schema.EventKind.SYSTEM, `${enemy.name} collapses and drops loot.`, null, { actorPlayerId: actorPid, roomId: room.id, enemyId, focusEntityId: loot.id }, "room");
+
+    for (const p of Object.values(this.state.players)){
+      if (p.roomId !== room.id) continue;
+      if (p.engagedEnemyId === enemyId) p.engagedEnemyId = null;
+    }
+    delete room.combats?.[enemyId];
+    delete room.entities[enemyId];
   }
 
   _applyResolveOutcomeToRuntime(actorEnt, targetEnt){
@@ -601,8 +637,22 @@ class GameEngine {
     const targetId = chosen.targetId || p.engagedEnemyId || action?.targetRef?.targetId;
     const targetRef = action?.targetRef || targetId;
 
+    const enemy = p.engagedEnemyId ? room.entities[p.engagedEnemyId] : null;
+    const enemyBeforeHp = enemy?.state?.combatant?.hp ?? enemy?.state?.hp ?? null;
+
     const outcome = this._resolveVerbIntent(pid, chosen.verbId || DEFAULT_VERB_ID, targetRef, room);
     this._emitOutcome(room, pid, outcome, { targetId: typeof targetRef === 'string' ? targetRef : targetRef?.id || targetRef?.exitId });
+
+    const enemyAfter = p.engagedEnemyId ? room.entities[p.engagedEnemyId] : null;
+    const enemyAfterHp = enemyAfter?.state?.combatant?.hp ?? enemyAfter?.state?.hp ?? null;
+    if (enemy && enemyBeforeHp != null && enemyAfterHp != null){
+      this._emitHealthStateNarrative(room, enemy.name, enemyBeforeHp, enemyAfterHp, enemy.state?.combatant?.hpMax || enemy.state?.hpMax || 1, { enemyId: enemy.id, actorPlayerId: pid });
+      if (enemyAfterHp <= 0){
+        this._handleEnemyDefeat(room, enemy.id, pid);
+        this._broadcastState();
+        return;
+      }
+    }
 
     if (p.engagedEnemyId){
       this._resolveTurnedCombat(room.id, p.engagedEnemyId, pid);
@@ -633,14 +683,14 @@ class GameEngine {
       const enemyActor = this._asActorEntity(enemyId, r);
       const playerTarget = this._asActorEntity(actorPid, r);
       const pick = pickEnemyVerb(enemyActor, playerTarget, aiWeights);
+      const playerBeforeHp = pl.hp;
       const out = this._resolveVerbIntent(enemyId, pick, actorPid, r);
       this._emitOutcome(r, actorPid, out, { enemyId, actorPlayerId: actorPid, targetPlayerId: actorPid });
+      this._emitHealthStateNarrative(r, pl.name, playerBeforeHp, pl.hp, pl.hpMax || 1, { enemyId, actorPlayerId: actorPid, targetPlayerId: actorPid });
 
       if (pl.hp <= 0){
         this._emitEvent(Schema.EventKind.SYSTEM, `You fall unconscious.`, null, { actorPlayerId: actorPid, roomId: r.id, enemyId });
         this._disengage(actorPid);
-      } else if (en.state.hp <= 0){
-        this._emitEvent(Schema.EventKind.SYSTEM, `${en.name} is defeated.`, null, { actorPlayerId: actorPid, roomId: r.id, enemyId }, "room");
       }
 
       combat.turn.phase = "player";

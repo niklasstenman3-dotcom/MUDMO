@@ -5,6 +5,8 @@ import { addStatus, getStatus, removeStatus, applyVerbStatusClears } from "./sta
 
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 
+const NON_DAMAGE_VERBS = new Set(["observe","inspect","brace","guard","block","parry","release","move","walk","run","sprint","retreat","advance","climb","descend","leap","crawl","swim","mount","dismount"]);
+
 function tierFromDelta(delta){
   if (delta < -2) return "fail";
   if (delta < 2) return "partial";
@@ -71,6 +73,26 @@ export function resolveVerb({ actor, verbId, target, ctx }){
     return out;
   }
 
+  if (["brace","guard","block","parry"].includes(verb.id)){
+    if (a.combatant){
+      if (verb.id === "brace"){
+        a.combatant.poise = Math.min(a.combatant.poiseMax || 999, (a.combatant.poise || 0) + 3);
+        a.combatant.guard = Math.min(a.combatant.guardMax || 999, (a.combatant.guard || 0) + 2);
+      } else if (verb.id === "guard"){
+        a.combatant.guard = Math.min(a.combatant.guardMax || 999, (a.combatant.guard || 0) + 3);
+      } else if (verb.id === "block"){
+        a.combatant.guard = Math.min(a.combatant.guardMax || 999, (a.combatant.guard || 0) + 2);
+      } else if (verb.id === "parry"){
+        a.combatant.poise = Math.min(a.combatant.poiseMax || 999, (a.combatant.poise || 0) + 2);
+      }
+    }
+    out.ok = true;
+    out.tier = "solid";
+    out.lines.push(`${verb.label} steadies your stance.`);
+    out.sound = { ono:"TCHK!", hook:"soft" };
+    return out;
+  }
+
   const required = verb.requires || [];
   const missingTool = required.length && !required.some(r => a.tools?.[r]);
 
@@ -119,7 +141,7 @@ export function resolveVerb({ actor, verbId, target, ctx }){
   const base = hasHpDomain ? verb.damage.hp : hasIntegrityDomain ? verb.damage.integrity : 0;
   const finalDamage = Math.round(base * mult * resistMult);
 
-  if (!out.ok && base > 0){
+  if (!out.ok && base > 0 && !NON_DAMAGE_VERBS.has(verb.id)){
     if (hasHpDomain){
       t.combatant.hp = Math.max(0, t.combatant.hp - finalDamage);
       out.applied.damageHp = finalDamage;
@@ -186,6 +208,7 @@ export function resolveVerb({ actor, verbId, target, ctx }){
   }
 
   if (!out.lines.length) out.lines.push(`You attempt ${verb.label.toLowerCase()} on ${t.name}.`);
+  if (t.combatant && t.combatant.hp <= 0) out.lines.push(`${t.name} is defeated.`);
   out.sound = { ono: mat.ono[verb.kind] || "THK!", hook: out.noise > 0.3 ? "loud" : "soft" };
   return out;
 }
