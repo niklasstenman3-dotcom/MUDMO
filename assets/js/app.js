@@ -374,7 +374,11 @@ class GameEngine {
 
   _targetEntityFromRef(room, targetRef){
     if (!room || !targetRef) return null;
-    const raw = typeof targetRef === "string" ? room.entities[targetRef] : room.entities[targetRef?.targetId || targetRef?.id];
+    const key = typeof targetRef === "string" ? targetRef : (targetRef?.targetId || targetRef?.id);
+    if (typeof key === "string" && this.state.players[key]){
+      return this._asActorEntity(key, room);
+    }
+    const raw = key ? room.entities[key] : null;
     if (raw){
       if (raw.kind === Schema.EntityKind.ENEMY){
         return {
@@ -1704,14 +1708,14 @@ class App {
       parts.push(this._renderActionDropdown(actions));
     }
 
-    parts.push(`<details class="inspectorDetails"><summary>Details</summary>`);
+    parts.push(`<div class="inspectorDetails"><div class="tiny" style="margin-top:8px; margin-bottom:4px; color:var(--muted); font-weight:800; text-transform:uppercase;">Details</div>`);
     for (const sec of kvSecs){
       parts.push(`<div class="kv">` + sec.rows.map(([k,v])=>`<div>${escapeHtml(k)}</div><div>${escapeHtml(v)}</div>`).join("") + `</div>`);
     }
     for (const sec of textSecs){
       parts.push(`<div class="hint">${escapeHtml(sec.text)}</div>`);
     }
-    parts.push(`</details>`);
+    parts.push(`</div>`);
     parts.push(`</div>`);
 
     box.innerHTML = parts.join("");

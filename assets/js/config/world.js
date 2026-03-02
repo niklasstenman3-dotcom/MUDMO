@@ -221,26 +221,26 @@ export function renderMiniMapSVG(currentRoomId){
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
 
-  const pad = 22;
-  const cell = 56;
+  const pad = 18;
+  const cell = 74;
   const w = (maxX - minX + 1) * cell + pad*2;
   const h = (maxY - minY + 1) * cell + pad*2;
 
   const toPx = (x,y) => ({ px: pad + (x - minX) * cell, py: pad + (y - minY) * cell });
 
-  const stroke = "rgba(255,255,255,.22)";
-  const roomStroke = "rgba(255,255,255,.18)";
-  const roomFill = "rgba(0,0,0,.20)";
-  const activeStroke = "rgba(122,168,255,.70)";
-  const activeFill = "rgba(122,168,255,.14)";
+  const stroke = "rgba(214,187,136,.30)";
+  const roomStroke = "rgba(214,187,136,.40)";
+  const roomFill = "rgba(20,16,12,.82)";
+  const activeStroke = "rgba(122,168,255,.88)";
+  const activeFill = "rgba(64,103,170,.26)";
 
   let svg = `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
   svg += `<defs>
     <pattern id="grid" width="${cell}" height="${cell}" patternUnits="userSpaceOnUse">
-      <path d="M ${cell} 0 L 0 0 0 ${cell}" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+      <path d="M ${cell} 0 L 0 0 0 ${cell}" fill="none" stroke="rgba(214,187,136,.08)" stroke-width="1"/>
     </pattern>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>`;
@@ -250,17 +250,21 @@ export function renderMiniMapSVG(currentRoomId){
     const A = nodes[e.a], B = nodes[e.b];
     if (!A || !B) continue;
     const ap = toPx(A.x, A.y), bp = toPx(B.x, B.y);
-    svg += `<path d="M ${ap.px} ${ap.py} L ${bp.px} ${bp.py}" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>`;
+    svg += `<path d="M ${ap.px} ${ap.py} L ${bp.px} ${bp.py}" stroke="${stroke}" stroke-width="4" stroke-linecap="round"/>`;
   }
 
   for (const [id, n] of Object.entries(nodes)){
     const p = toPx(n.x, n.y);
     const isActive = id === currentRoomId;
-    const r = 14;
+    const size = 24;
+    const x = p.px - size/2;
+    const y = p.py - size/2;
     svg += `<g ${isActive ? `filter="url(#glow)"` : ""}>`;
-    svg += `<circle cx="${p.px}" cy="${p.py}" r="${r}" fill="${isActive ? activeFill : roomFill}" stroke="${isActive ? activeStroke : roomStroke}" stroke-width="3"/>`;
+    svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="3" fill="${isActive ? activeFill : roomFill}" stroke="${isActive ? activeStroke : roomStroke}" stroke-width="3"/>`;
     svg += `</g>`;
-    // Keep the minimap iconographic: no room-name labels in-panel.
+
+    const labelY = y + size + 12;
+    svg += `<text x="${p.px}" y="${labelY}" text-anchor="middle" fill="rgba(224,214,196,.86)" font-size="8" font-family="IBM Plex Mono, monospace" letter-spacing=".02em">${n.label}</text>`;
   }
 
   svg += `</svg>`;
