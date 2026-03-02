@@ -21,7 +21,8 @@ function asActorRuntime(actor){
 }
 
 export function resolveVerb({ actor, verbId, target, ctx }){
-  const verb = VERB_BY_ID[verbId] || VERB_BY_ID.observe;
+  const baseVerb = VERB_BY_ID[verbId] || VERB_BY_ID.observe;
+  const verb = baseVerb.kind ? baseVerb : { ...baseVerb, kind:"impact" };
   const out = {
     ok:false, tier:"fail", verbId:verb.id, actorId:actor.id, targetName:target?.name || "target",
     lines:[], personal:[], sound:null,
@@ -49,6 +50,15 @@ export function resolveVerb({ actor, verbId, target, ctx }){
   if (verb.kind === "movement" && (getStatus(a,"pinned") || getStatus(a,"restrained"))){
     out.lines.push(`You can't move while restrained.`);
     return out;
+  }
+
+  const combatCtx = ctx?.combat || null;
+  const defenderLastVerbUsed = combatCtx?.defenderLastVerbUsed || null;
+  const preparedDefense = !!(defenderLastVerbUsed && verb.id === defenderLastVerbUsed);
+  let suppressStatuses = false;
+  let preparedDamageMult = preparedDefense ? 0.60 : 1.0;
+  if (preparedDefense){
+    out.lines.push(`${t.name} is ready for that line.`);
   }
 
   if (verb.flags?.isPerception || verb.kind === "perception"){
@@ -139,7 +149,30 @@ export function resolveVerb({ actor, verbId, target, ctx }){
   const hasHpDomain = !!t.combatant;
   const hasIntegrityDomain = !!t.integrity;
   const base = hasHpDomain ? verb.damage.hp : hasIntegrityDomain ? verb.damage.integrity : 0;
-  const finalDamage = Math.round(base * mult * resistMult);
+  let outgoingDamageMult = 1.0;
+  if (getStatus(a, "winded")) outgoingDamageMult *= 0.90;
+  if (getStatus(a, "exhausted")) outgoingDamageMult *= 0.80;
+
+  let incomingDamageMult = 1.0;
+  if (getStatus(t, "exhausted")) incomingDamageMult *= 1.10;
+
+  let reactionMult = 1.0;
+  if (preparedDefense){
+    const kind = verb.kind || "impact";
+    const isEdge = ["edge","pierce"].includes(kind);
+    const reactionType = isEdge ? "parry" : kind === "impact" ? "block" : "resist";
+    const reactionBonus = (reactionType === "resist") ? 0.20 : 0.25;
+    const baseReactionChance = 0.20;
+    if (Math.random() < (baseReactionChance + reactionBonus)){
+      reactionMult = 0.20;
+      suppressStatuses = true;
+      if (reactionType === "parry") out.lines.push(`KLANG! ${t.name} parries the ${verb.label}.`);
+      else if (reactionType === "block") out.lines.push(`TCHK! ${t.name} blocks the ${verb.label}.`);
+      else out.lines.push(`SKID! ${t.name} resists the ${verb.label}.`);
+    }
+  }
+
+  const finalDamage = Math.round(base * mult * resistMult * outgoingDamageMult * incomingDamageMult * preparedDamageMult * reactionMult);
 
   if (!out.ok && base > 0 && !NON_DAMAGE_VERBS.has(verb.id)){
     if (hasHpDomain){
@@ -169,7 +202,7 @@ export function resolveVerb({ actor, verbId, target, ctx }){
     }
   }
 
-  if (["grapple","restrain","pin","trip","choke","unbalance"].includes(verb.id) && t.combatant){
+  if (!suppressStatuses && ["grapple","restrain","pin","trip","choke","unbalance"].includes(verb.id) && t.combatant){
     const sid = verb.id === "trip" ? "prone" : verb.id === "pin" ? "pinned" : verb.id === "choke" ? "winded" : verb.id === "unbalance" ? "off_balance" : "restrained";
     if (out.tier === "solid" || out.tier === "crit"){
       const inst = addStatus(t, sid, { intensity:1, sourceId:a.id });
@@ -177,7 +210,7 @@ export function resolveVerb({ actor, verbId, target, ctx }){
     }
   }
 
-  if (verb.applyStatus && (out.tier === "solid" || out.tier === "crit")){
+  if (!suppressStatuses && verb.applyStatus && (out.tier === "solid" || out.tier === "crit")){
     if (Math.random() <= (verb.applyStatus.chance ?? 1)){
       const inst = addStatus(t, verb.applyStatus.id, {
         intensity: verb.applyStatus.intensity || 1,
@@ -185,6 +218,16 @@ export function resolveVerb({ actor, verbId, target, ctx }){
         sourceId: a.id
       });
       if (inst) out.applied.statusesAdded.push(inst.id);
+    }
+  }
+
+  if (!suppressStatuses && t.combatant && finalDamage > 0){
+    let offBalanceChance = 0;
+    if (getStatus(t, "winded")) offBalanceChance += 0.15;
+    if (getStatus(t, "exhausted")) offBalanceChance += 0.30;
+    if (offBalanceChance > 0 && Math.random() < offBalanceChance){
+      const inst = addStatus(t, "off_balance", { intensity:1, sourceId:a.id });
+      if (inst) out.applied.statusesAdded.push("off_balance");
     }
   }
 

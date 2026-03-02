@@ -6,6 +6,7 @@ export const Schema = Object.freeze({
     CHAT:"chat",
     ENGAGE:"engage", DISENGAGE:"disengage",
     QUEUE_ACTION:"queue_action",
+    EXECUTE_PLAN:"execute_plan", UNDO_PLAN:"undo_plan",
     TRAVEL:"travel", SCOUT_NEXT:"scout_next",
     UNLOCK_DOOR:"unlock_door", OPEN_DOOR:"open_door", CLOSE_DOOR:"close_door",
     OPEN:"open", UNLOCK:"unlock", PICKUP:"pickup"
@@ -26,4 +27,3 @@ export function escapeHtml(s){
 }
 export function escapeAttr(s){ return escapeHtml(s).replaceAll("\n"," "); }
 export function titleCase(s){ return s ? s[0].toUpperCase() + s.slice(1) : s; }
-

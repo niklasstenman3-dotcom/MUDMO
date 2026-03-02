@@ -499,13 +499,13 @@ class GameEngine {
     }
   }
 
-  _resolveVerbIntent(actorId, verbId, targetRef, room){
+  _resolveVerbIntent(actorId, verbId, targetRef, room, options = {}){
     const actor = this._asActorEntity(actorId, room);
     const target = this._targetEntityFromRef(room, targetRef);
     if (!actor || !target){
       return { ok:false, tier:"fail", lines:["No valid target."], applied:{} };
     }
-    const outcome = resolveVerb({ actor, verbId, target, ctx: { time: U.now()/1000, roomId: room.id, noise:0, knowledge: (this.state.knowledge ||= {}) } });
+    const outcome = resolveVerb({ actor, verbId, target, ctx: { time: U.now()/1000, roomId: room.id, noise:0, knowledge: (this.state.knowledge ||= {}), combat: options.combat || null } });
     this._applyResolveOutcomeToRuntime(actor, target);
     if (target.commit) target.commit();
     return outcome;
@@ -530,6 +530,8 @@ class GameEngine {
       case Schema.Action.ENGAGE: this._engage(playerId, intent.targetId); break;
       case Schema.Action.DISENGAGE: this._disengage(playerId); break;
       case Schema.Action.QUEUE_ACTION: this._queueAction(playerId, intent.payload); break;
+      case Schema.Action.EXECUTE_PLAN: this._executePlan(playerId); break;
+      case Schema.Action.UNDO_PLAN: this._undoPlan(playerId); break;
 
       case Schema.Action.OPEN: this._openObject(playerId, intent.targetId); break;
       case Schema.Action.UNLOCK: this._unlockObject(playerId, intent.targetId); break;
@@ -565,12 +567,26 @@ class GameEngine {
       room.combats[enemyId] = {
         engaged:{},
         actions:{},
-        turn:{ phase:"player", turnPid: initialTurnPid, busyUntil:0 }
+        turn:{ phase:"player", turnPid: initialTurnPid, busyUntil:0 },
+        phase:"planning",
+        roundSize:3,
+        playerPlan:[],
+        enemyPlan:[],
+        stepIndex:0,
+        lastVerbUsed:{ player:null, enemy:null }
       };
-    } else {
-      room.combats[enemyId].turn = room.combats[enemyId].turn || { phase:"player", turnPid: initialTurnPid, busyUntil:0 };
     }
-    return room.combats[enemyId];
+    const combat = room.combats[enemyId];
+    combat.turn = combat.turn || { phase:"player", turnPid: initialTurnPid, busyUntil:0 };
+    combat.phase = combat.phase || "planning";
+    combat.roundSize = Number(combat.roundSize || 3);
+    combat.playerPlan = Array.isArray(combat.playerPlan) ? combat.playerPlan : [];
+    combat.enemyPlan = Array.isArray(combat.enemyPlan) ? combat.enemyPlan : [];
+    combat.stepIndex = Number.isFinite(combat.stepIndex) ? combat.stepIndex : 0;
+    combat.lastVerbUsed = combat.lastVerbUsed || { player:null, enemy:null };
+    if (!("player" in combat.lastVerbUsed)) combat.lastVerbUsed.player = null;
+    if (!("enemy" in combat.lastVerbUsed)) combat.lastVerbUsed.enemy = null;
+    return combat;
   }
 
   _engage(pid, enemyId){
@@ -634,71 +650,171 @@ class GameEngine {
     if (!room || !p) return;
 
     const chosen = _legacyActionToVerb(action || {});
-    const targetId = chosen.targetId || p.engagedEnemyId || action?.targetRef?.targetId;
-    const targetRef = action?.targetRef || targetId;
+    const enemyId = p.engagedEnemyId;
 
-    const enemy = p.engagedEnemyId ? room.entities[p.engagedEnemyId] : null;
-    const enemyBeforeHp = enemy?.state?.combatant?.hp ?? enemy?.state?.hp ?? null;
-
-    const outcome = this._resolveVerbIntent(pid, chosen.verbId || DEFAULT_VERB_ID, targetRef, room);
-    this._emitOutcome(room, pid, outcome, { targetId: typeof targetRef === 'string' ? targetRef : targetRef?.id || targetRef?.exitId });
-
-    const enemyAfter = p.engagedEnemyId ? room.entities[p.engagedEnemyId] : null;
-    const enemyAfterHp = enemyAfter?.state?.combatant?.hp ?? enemyAfter?.state?.hp ?? null;
-    if (enemy && enemyBeforeHp != null && enemyAfterHp != null){
-      this._emitHealthStateNarrative(room, enemy.name, enemyBeforeHp, enemyAfterHp, enemy.state?.combatant?.hpMax || enemy.state?.hpMax || 1, { enemyId: enemy.id, actorPlayerId: pid });
-      if (enemyAfterHp <= 0){
-        this._handleEnemyDefeat(room, enemy.id, pid);
-        this._broadcastState();
-        return;
-      }
+    if (!enemyId){
+      const targetId = chosen.targetId || action?.targetRef?.targetId;
+      const targetRef = action?.targetRef || targetId;
+      const outcome = this._resolveVerbIntent(pid, chosen.verbId || DEFAULT_VERB_ID, targetRef, room);
+      this._emitOutcome(room, pid, outcome, { targetId: typeof targetRef === 'string' ? targetRef : targetRef?.id || targetRef?.exitId });
+      return;
     }
 
-    if (p.engagedEnemyId){
-      this._resolveTurnedCombat(room.id, p.engagedEnemyId, pid);
+    const combat = this._ensureCombat(room, enemyId, pid);
+    if (combat.phase !== "planning"){
+      this._emitEvent(Schema.EventKind.SYSTEM, `Executing...`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
+      return;
     }
+
+    if (combat.playerPlan.length >= combat.roundSize) return;
+
+    const verb = CORE_PHYSICAL_BY_ID[chosen.verbId || DEFAULT_VERB_ID];
+    const planItem = { verbId: verb?.id || DEFAULT_VERB_ID, targetRef: enemyId };
+    combat.playerPlan.push(planItem);
+    this._emitEvent(Schema.EventKind.SYSTEM, `Planned: ${verb?.label || planItem.verbId} (${combat.playerPlan.length}/${combat.roundSize})`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
   }
 
-  _resolveTurnedCombat(roomId, enemyId, actorPid){
-    const room = this.state.rooms[roomId];
-    if (!room) return;
-    const combat = room.combats?.[enemyId];
+  _undoPlan(pid){
+    const room = this._roomOf(pid);
+    const p = this.state.players[pid];
+    if (!room || !p?.engagedEnemyId) return;
+    const enemyId = p.engagedEnemyId;
+    const combat = this._ensureCombat(room, enemyId, pid);
+    if (combat.phase !== "planning" || !combat.playerPlan.length) return;
+    const prev = combat.playerPlan.pop();
+    const verb = CORE_PHYSICAL_BY_ID[prev?.verbId];
+    this._emitEvent(Schema.EventKind.SYSTEM, `Undo: ${verb?.label || prev?.verbId || "Action"}`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
+  }
+
+  _applyStaminaState(actor){
+    if (!actor?.combatant) return;
+    const statuses = actor.statuses || (actor.statuses = []);
+    const staMax = Math.max(1, Number(actor.combatant.staminaMax || 1));
+    const sta = Number(actor.combatant.stamina || 0);
+    const remove = (id)=>{ actor.statuses = statuses.filter(s=>s.id!==id); };
+    const ensure = (id)=>{ if (!statuses.find(s=>s.id===id)) statuses.push({ id, intensity:1, remaining:2.0, sourceId:actor.id }); };
+
+    if (sta <= 0){ remove("winded"); ensure("exhausted"); return; }
+    if ((sta / staMax) <= 0.20){ remove("exhausted"); ensure("winded"); return; }
+    remove("winded"); remove("exhausted");
+  }
+
+  _clearCombatPlans(combat){
+    combat.phase = "planning";
+    combat.playerPlan = [];
+    combat.enemyPlan = [];
+    combat.stepIndex = 0;
+  }
+
+  _executePlan(pid){
+    const room = this._roomOf(pid);
+    const p = this.state.players[pid];
+    if (!room || !p?.engagedEnemyId) return;
+
+    const enemyId = p.engagedEnemyId;
     const enemy = room.entities?.[enemyId];
-    if (!combat || !enemy || enemy.kind !== Schema.EntityKind.ENEMY) return;
+    if (!enemy || enemy.kind !== Schema.EntityKind.ENEMY) return;
 
-    const p = this.state.players[actorPid];
-    if (!p || !p.engagedEnemyId || p.engagedEnemyId !== enemyId) return;
+    const combat = this._ensureCombat(room, enemyId, pid);
+    if (combat.phase !== "planning") return;
+    if (combat.playerPlan.length !== combat.roundSize) return;
 
-    combat.turn = combat.turn || { phase:"player", turnPid: actorPid, busyUntil:0 };
-    combat.turn.phase = "enemy";
-    combat.turn.busyUntil = U.now() + 700;
+    combat.enemyPlan = [];
+    for (let i=0;i<combat.roundSize;i++){
+      const enemyActor = this._asActorEntity(enemyId, room);
+      const playerTarget = this._asActorEntity(pid, room);
+      const pick = pickEnemyVerb(enemyActor, playerTarget, enemy.state?.aiWeights || { bash:0.35, shove:0.15, grapple:0.12, guard:0.15, observe:0.23 });
+      combat.enemyPlan.push({ verbId: pick, targetRef: pid });
+    }
 
-    setTimeout(()=>{
-      const r = this.state.rooms[roomId];
-      const en = r?.entities?.[enemyId];
-      const pl = this.state.players[actorPid];
-      if (!r || !en || !pl || pl.hp <= 0 || en.state.hp <= 0) return;
+    combat.phase = "executing";
+    combat.stepIndex = 0;
+    this._executeCombatStep(room.id, enemyId, pid);
+  }
 
-      const aiWeights = en.state?.aiWeights || { bash:0.35, shove:0.15, grapple:0.12, guard:0.15, observe:0.23 };
-      const enemyActor = this._asActorEntity(enemyId, r);
-      const playerTarget = this._asActorEntity(actorPid, r);
-      const pick = pickEnemyVerb(enemyActor, playerTarget, aiWeights);
-      const playerBeforeHp = pl.hp;
-      const out = this._resolveVerbIntent(enemyId, pick, actorPid, r);
-      this._emitOutcome(r, actorPid, out, { enemyId, actorPlayerId: actorPid, targetPlayerId: actorPid });
-      this._emitHealthStateNarrative(r, pl.name, playerBeforeHp, pl.hp, pl.hpMax || 1, { enemyId, actorPlayerId: actorPid, targetPlayerId: actorPid });
+  _executeCombatStep(roomId, enemyId, pid){
+    const room = this.state.rooms[roomId];
+    const p = this.state.players[pid];
+    const enemy = room?.entities?.[enemyId];
+    const combat = room?.combats?.[enemyId];
+    if (!room || !p || !enemy || !combat || combat.phase !== "executing") return;
 
-      if (pl.hp <= 0){
-        this._emitEvent(Schema.EventKind.SYSTEM, `You fall unconscious.`, null, { actorPlayerId: actorPid, roomId: r.id, enemyId });
-        this._disengage(actorPid);
-      }
-
-      combat.turn.phase = "player";
-      combat.turn.turnPid = actorPid;
-      combat.turn.busyUntil = U.now();
-      delete combat.actions?.[actorPid];
+    if ((p.hp ?? 0) <= 0 || (enemy.state?.hp ?? 0) <= 0){
+      this._clearCombatPlans(combat);
       this._broadcastState();
-    }, 720);
+      return;
+    }
+
+    const i = combat.stepIndex;
+    const actorSide = i % 2 === 0 ? "player" : "enemy";
+    const defenderSide = actorSide === "player" ? "enemy" : "player";
+    const actorId = actorSide === "player" ? pid : enemyId;
+    const action = actorSide === "player" ? combat.playerPlan[Math.floor(i/2)] : combat.enemyPlan[Math.floor(i/2)];
+    const targetRef = actorSide === "player" ? enemyId : pid;
+    const actorEnt = this._asActorEntity(actorId, room);
+    const enemyBeforeHp = enemy.state?.combatant?.hp ?? enemy.state?.hp ?? 0;
+    const playerBeforeHp = p.hp ?? 0;
+
+    const allActors = [this._asActorEntity(pid, room), this._asActorEntity(enemyId, room)].filter(Boolean);
+    for (const ent of allActors){
+      if (!ent.combatant) continue;
+      const sMax = Math.max(1, Number(ent.combatant.staminaMax || 1));
+      ent.combatant.stamina = Math.min(sMax, Number(ent.combatant.stamina || 0) + 1);
+      this._applyStaminaState(ent);
+    }
+
+    if (actorEnt?.combatant && action?.verbId && combat.lastVerbUsed[actorSide] === action.verbId){
+      actorEnt.combatant.stamina = Math.max(0, Number(actorEnt.combatant.stamina || 0) - 1);
+    }
+
+    const outcome = this._resolveVerbIntent(actorId, action?.verbId || DEFAULT_VERB_ID, targetRef, room, {
+      combat: {
+        attackerSide: actorSide,
+        defenderSide,
+        defenderLastVerbUsed: combat.lastVerbUsed[defenderSide]
+      }
+    });
+
+    this._emitOutcome(room, pid, outcome, { enemyId, actorPlayerId: pid, targetPlayerId: pid });
+
+    combat.lastVerbUsed[actorSide] = action?.verbId || DEFAULT_VERB_ID;
+    this._applyStaminaState(this._asActorEntity(pid, room));
+    this._applyStaminaState(this._asActorEntity(enemyId, room));
+
+    const enemyAfterHp = enemy.state?.combatant?.hp ?? enemy.state?.hp ?? 0;
+    const playerAfterHp = p.hp ?? 0;
+
+    if (enemyBeforeHp !== enemyAfterHp){
+      this._emitHealthStateNarrative(room, enemy.name, enemyBeforeHp, enemyAfterHp, enemy.state?.combatant?.hpMax || enemy.state?.hpMax || 1, { enemyId, actorPlayerId: pid });
+    }
+    if (playerBeforeHp !== playerAfterHp){
+      this._emitHealthStateNarrative(room, p.name, playerBeforeHp, playerAfterHp, p.hpMax || 1, { enemyId, actorPlayerId: pid, targetPlayerId: pid });
+    }
+
+    if (enemyAfterHp <= 0){
+      this._handleEnemyDefeat(room, enemyId, pid);
+      this._clearCombatPlans(combat);
+      this._broadcastState();
+      return;
+    }
+
+    if (playerAfterHp <= 0){
+      this._emitEvent(Schema.EventKind.SYSTEM, `You fall unconscious.`, null, { actorPlayerId: pid, roomId: room.id, enemyId });
+      this._disengage(pid);
+      this._clearCombatPlans(combat);
+      this._broadcastState();
+      return;
+    }
+
+    combat.stepIndex += 1;
+    if (combat.stepIndex >= combat.roundSize * 2){
+      this._clearCombatPlans(combat);
+      this._broadcastState();
+      return;
+    }
+
+    this._broadcastState();
+    setTimeout(()=>this._executeCombatStep(roomId, enemyId, pid), 550);
   }
 
   _openObject(pid, objId){
@@ -1010,20 +1126,31 @@ const Handlers = {
   [Schema.EntityKind.ENEMY]: {
     inspect(ent, ctx){
       const hp = ent.state.hp, hpMax = ent.state.hpMax;
-      const combat = ctx.room.combats?.[ent.id] || null;
-      const turn = combat?.turn || null;
-      const phaseLabel = turn ? (turn.phase === "enemy" ? "Enemy acting…" : "Your turn") : "—";
+      const sta = ent.state.combatant?.stamina ?? 0;
+      const staMax = ent.state.combatant?.staminaMax ?? 0;
+      const statuses = ent.state.statuses || [];
+      const hpPct = hpMax ? (hp / hpMax) : 1;
+      const condition = hpPct >= 0.70 ? "Healthy" : hpPct >= 0.30 ? "Wounded" : "Fading";
+      const posture = statuses.some(s=>s.id==="pinned") ? "Pinned"
+        : statuses.some(s=>s.id==="restrained") ? "Restrained"
+        : statuses.some(s=>s.id==="prone") ? "Prone"
+        : statuses.some(s=>s.id==="off_balance") ? "Off-balance"
+        : "Upright";
+      const chips = statuses.filter(s=>["bleeding","winded","exhausted"].includes(s.id)).map(s=>titleCase(s.id.replaceAll("_"," ")));
+      const engagedWithYou = ctx.you?.engagedEnemyId === ent.id ? "Yes" : "No";
 
       return {
         title: ent.name,
         kindLabel:"Enemy",
         sections:[
-          { type:"hp", hp, hpMax },
+          { type:"hp", hp, hpMax, sta, staMax },
           { type:"kv", rows:[
-            ["Engaged", `${Object.keys(ent.state.orbit.assignments||{}).length}/${ent.state.orbit.slots}`],
-            ["ATK", String(ent.state.stats.atk)],
-            ["DEF", String(ent.state.stats.def)],
-            ["Turn", phaseLabel]
+            ["Type", "Enemy"],
+            ["Distance", "Near"],
+            ["Condition", condition],
+            ["Posture", posture],
+            ["Engaged", engagedWithYou],
+            ...(chips.length ? [["Visible Status", chips.join(", ")]] : [])
           ]},
           { type:"text", text:"All actions here are YOU acting on this enemy." }
         ]
@@ -1035,8 +1162,9 @@ const Handlers = {
       const anyEngaged = !!you?.engagedEnemyId;
 
       const combat = ctx.room.combats?.[ent.id] || null;
-      const turn = combat?.turn || { phase:"player", turnPid: ctx.playerId, busyUntil:0 };
-      const isYourTurn = youEngagedThis && (turn.phase === "player") && (turn.turnPid === ctx.playerId);
+      const planning = combat?.phase !== "executing";
+      const planLen = combat?.playerPlan?.length || 0;
+      const roundSize = combat?.roundSize || 3;
 
       const orbit = ent.state.orbit;
       const full = Object.keys(orbit.assignments||{}).length >= orbit.slots;
@@ -1046,16 +1174,34 @@ const Handlers = {
         { label:"Disengage", style:"", enabled: youEngagedThis, hint: youEngagedThis?"":"Not engaged", menuPath:["Interact","Combat"], intent:{ action:Schema.Action.DISENGAGE } }
       ];
 
-      const hint = isYourTurn ? "" : "Enemy is acting…";
       const ids = CURATED_COMBAT_VERBS.filter(id => CORE_PHYSICAL_BY_ID[id]);
       for (const vid of ids){
         const pick = CORE_PHYSICAL_BY_ID[vid];
         acts.push({
           label: pick.label || pick.name,
           style: ["bash","thrust","slice"].includes(pick.id) ? "primary" : "",
-          enabled: youEngagedThis ? isYourTurn : ["observe","inspect"].includes(pick.id),
-          hint: youEngagedThis ? hint : (anyEngaged ? "Engage to use combat verbs" : "Can use perception now"),
+          enabled: youEngagedThis ? (planning && planLen < roundSize) : ["observe","inspect"].includes(pick.id),
+          hint: youEngagedThis ? (planning ? "" : "Executing…") : (anyEngaged ? "Engage to use combat verbs" : "Can use perception now"),
           intent:{ action:Schema.Action.QUEUE_ACTION, payload:{ type:"verb", verbId:pick.id, targetId: ent.id, targetRef: ent.id } }
+        });
+      }
+
+      if (youEngagedThis){
+        acts.push({
+          label:"Undo Last",
+          style:"",
+          enabled: planning && planLen > 0,
+          hint:"",
+          menuPath:["Interact","Combat"],
+          intent:{ action:Schema.Action.UNDO_PLAN, targetId: ent.id }
+        });
+        acts.push({
+          label:"Do",
+          style:"primary",
+          enabled: planning && planLen === roundSize,
+          hint: planning ? `Plan ${planLen}/${roundSize}` : "Executing…",
+          menuPath:["Interact","Combat"],
+          intent:{ action:Schema.Action.EXECUTE_PLAN, targetId: ent.id }
         });
       }
       return acts;
@@ -1069,7 +1215,7 @@ const Handlers = {
           title: ent.name,
           kindLabel:"Chest",
           sections:[
-            { type:"kv", rows:[["Locked", ent.state.locked?"Yes":"No"],["Opened", ent.state.opened?"Yes":"No"]] },
+            { type:"kv", rows:[["Type","Object"],["Condition", (ent.state.integrity?.max ? ((ent.state.integrity.current/ent.state.integrity.max)>=0.75?"Intact":(ent.state.integrity.current/ent.state.integrity.max)>=0.4?"Cracked":(ent.state.integrity.current/ent.state.integrity.max)>0?"Failing":"Broken") : "Unknown")],["Open", ent.state.opened?"Open":"Closed"],["Locked", ent.state.locked?"Yes":"No"],["Material", ent.state.materials?.primary || "Unknown"]] },
             { type:"text", text: ent.state.opened ? "Opened." : "Might contain loot." }
           ]
         };
@@ -1514,7 +1660,9 @@ class App {
     const xp = you.xp ?? 0;
     const xpNext = you.xpNext ?? 200;
     const lvl = you.lvl ?? 1;
-    document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | LVL ${lvl} | XP ${xp}/${xpNext}`;
+    const sta = you.combatant?.stamina ?? 0;
+    const staMax = you.combatant?.staminaMax ?? 0;
+    document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | STA ${sta}/${staMax} | LVL ${lvl} | XP ${xp}/${xpNext}`;
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
     const roomTitleEl = document.getElementById("roomTitle");
     if (roomTitleEl) roomTitleEl.textContent = "Area Chronicle";
@@ -1759,6 +1907,23 @@ class App {
       const pct = hpSec.hpMax ? Math.round((hpSec.hp/hpSec.hpMax)*100) : 0;
       parts.push(`<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted)"><span>HP</span><span>${escapeHtml(U.fmtHp(hpSec.hp, hpSec.hpMax))}</span></div>`);
       parts.push(`<div class="bar bad"><div style="width:${pct}%;"></div></div>`);
+      if (hpSec.staMax != null){
+        parts.push(`<div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:6px"><span>STA</span><span>${escapeHtml(`${hpSec.sta}/${hpSec.staMax}`)}</span></div>`);
+      }
+    }
+
+    const youEngagedThis = ctx.you?.engagedEnemyId && ent.kind === Schema.EntityKind.ENEMY && ctx.you.engagedEnemyId === ent.id;
+    const combat = youEngagedThis ? (ctx.room.combats?.[ent.id] || null) : null;
+    if (combat){
+      const roundSize = combat.roundSize || 3;
+      const plan = combat.playerPlan || [];
+      const slots = [];
+      for (let i=0;i<roundSize;i++){
+        const step = plan[i];
+        const label = step?.verbId ? (CORE_PHYSICAL_BY_ID[step.verbId]?.label || step.verbId) : "<empty>";
+        slots.push(`[${i+1}] ${label}`);
+      }
+      parts.push(`<div class="hint" style="margin-top:8px">Plan: ${escapeHtml(slots.join(" "))}</div>`);
     }
 
     parts.push(`<div class="actionsHeader">Actions</div>`);
