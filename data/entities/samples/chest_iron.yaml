@@ -1,0 +1,17 @@
+id: chest_iron
+name: Iron Chest
+material_primary: iron
+tags: [container]
+components:
+  integrity:
+    max: 110
+    current: 110
+    fracture_threshold: 50
+  openable:
+    is_open: false
+  lockable:
+    is_locked: true
+    lock_quality: 8
+  container:
+    contents: ["gem", "map"]
+    capacity: 6

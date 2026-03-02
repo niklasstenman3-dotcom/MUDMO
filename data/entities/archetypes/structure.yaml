@@ -1,0 +1,10 @@
+material_primary: wood
+components:
+  integrity:
+    max: 100
+    current: 100
+    fracture_threshold: 40
+  movable:
+    mass: 150
+    friction: 0.9
+    anchored: true

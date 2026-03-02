@@ -1,0 +1,14 @@
+material_primary: wood
+components:
+  integrity:
+    max: 80
+    current: 80
+    fracture_threshold: 30
+  openable:
+    is_open: false
+  lockable:
+    is_locked: true
+    lock_quality: 6
+  container:
+    contents: ["coin", "bandage"]
+    capacity: 10
