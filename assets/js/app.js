@@ -1330,7 +1330,8 @@ class App {
 
     document.getElementById("youPill").textContent = ctx.you?.name || "—";
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
-    document.getElementById("roomTitle").textContent = "Area Chronicle";
+    const roomTitleEl = document.getElementById("roomTitle");
+    if (roomTitleEl) roomTitleEl.textContent = "Area Chronicle";
     this._renderRoomFlavor(ctx.room);
 
     this.renderRoomPanel();
@@ -1515,7 +1516,8 @@ class App {
     const lvl = you.lvl ?? 1;
     document.getElementById("statusStrip").textContent = `HP ${U.fmtHp(you.hp ?? 0, you.hpMax ?? 0)} | LVL ${lvl} | XP ${xp}/${xpNext}`;
     document.getElementById("roomPanelTitle").textContent = ctx.room.name;
-    document.getElementById("roomTitle").textContent = "Area Chronicle";
+    const roomTitleEl = document.getElementById("roomTitle");
+    if (roomTitleEl) roomTitleEl.textContent = "Area Chronicle";
     this._renderRoomFlavor(ctx.room);
 
     const feedEl = document.querySelector(".roomPanel #roomFeed") || document.getElementById("roomFeed");
@@ -1536,21 +1538,22 @@ class App {
     };
     const classify = (e) => {
       const t = String(e.text || "").toLowerCase();
+      const isEnemyAction = t.includes(`hits ${String(ctx.you?.name || "").toLowerCase()}`) || t.includes("hits you-") || t.includes(" misses you");
+      const isPlayerAction = !!e?.payload?.actorPlayerId && e.payload.actorPlayerId === ctx.playerId;
+
+      if (t.includes("collapses") || t.includes("fall unconscious") || t.includes("is defeated")) return "rf-critical";
+      if (t.includes("faltering") || t.includes("badly wounded") || t.includes("near death")) return "rf-condition";
+      if (t.includes("steadies your stance") || t.includes("brace") || t.includes("guard")) return "rf-defensive";
+      if (t.includes("appears intact") || t.includes("it seems made of") || t.includes("lock quality") || t.includes("bleeding intensity") || t.includes("integrity ")) return "rf-info";
+
+      if (isEnemyAction) return "rf-enemy";
+      if (isPlayerAction && (t.includes("hits ") || t.includes("engage the") || t.includes("picked up"))) return "rf-player";
 
       if (t.includes("connected") || t.includes("traveler") || t.includes("voices drift") || t.includes("overlapping footsteps")) return "rf-presence";
-
       if (/^you return|^you descend|^you slip|^you step into|^you enter/.test(t)) return "rf-enter";
-
       if (t.includes("drip") || t.includes("clink") || t.includes("chain taps") || t.includes("gravel shifts") || t.includes("wings burst") || t.includes("twigs crack") || t.includes("hammer rings") || t.includes("shutters knock")) return "rf-ambient";
-
       if (t.startsWith("moved ") || t.startsWith("scouted ") || t.includes("door is ") || t.includes("opened the") || t.includes("closed the") || t.includes("unlocked the")) return "rf-move";
-
-      if (t.includes("engage the")) return "rf-engage";
-      if (t.includes("steel clashes") || t.includes(" hits ") || t.includes(" misses ") || t.includes("skitters") || t.includes("stresses")) return "rf-clash";
-      if (t.includes("faltering") || t.includes("badly wounded") || t.includes("near death")) return "rf-condition";
-      if (t.includes("collapses") || t.includes("fall unconscious") || t.includes("is defeated")) return "rf-death";
       if (/^a\s.+\sappears\./.test(t)) return "rf-spawn";
-
       if (t.includes("loot") || t.includes("picked up") || t.includes("opened chest") || t.includes("unlocked")) return "rf-loot";
       return "rf-system";
     };
@@ -1567,12 +1570,16 @@ class App {
       return txt;
     };
 
-    const hasActiveCombat = Object.values(ctx.room?.combats || {}).some(c => Object.keys(c?.engaged || {}).length > 0);
-    const ambientState = hasActiveCombat ? null : this.renderAmbientStateLine(roomEvents, ctx.room, fmtTime(U.now()));
+    const ambientState = this.renderAmbientStateLine(roomEvents, ctx.room, fmtTime(U.now()));
 
     const entries = roomEvents.map(e => {
       const time = fmtTime(e.ts);
-      return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${escapeHtml(toRoomNarrative(e))}</div></div>`;
+      const text = toRoomNarrative(e);
+      const m = String(text).match(/^([A-Z]{2,10}!)\s+(.*)$/);
+      const rendered = m
+        ? `<span class="rfOno">${escapeHtml(m[1])}</span> <span>${escapeHtml(m[2])}</span>`
+        : escapeHtml(text);
+      return `<div class="rfMsg ${classify(e)}"><div class="rfTime">${escapeHtml(time)}</div><div class="rfText">${rendered}</div></div>`;
     });
 
     if (ambientState) entries.push(ambientState);
@@ -1639,7 +1646,9 @@ class App {
         || low.includes("brace for impact");
     };
 
-    const newestAction = [...recent].reverse().find(isInteractiveEvent);
+    const newestAction = hasActiveCombat
+      ? [...recent].reverse().find(e => e?.kind === Schema.EventKind.COMBAT)
+      : [...recent].reverse().find(isInteractiveEvent);
     if (!newestAction) return null;
 
     const actionAge = now - (newestAction.ts || 0);

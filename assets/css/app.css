@@ -206,18 +206,23 @@
     }
     .rfMsg{display:grid; grid-template-columns:54px 1fr; gap:10px;}
     .rfTime{color:rgba(255,255,255,.45);}
-    .rfText{color:rgba(255,255,255,.78);}
+    .rfText{color:rgba(205,210,222,.78);}
+    .rfOno{font-weight:900; letter-spacing:.06em; color:#ffd59a;}
+
+    .rf-player .rfText{color:#e6b85c;}       /* player agency */
+    .rf-enemy .rfText{color:#c65a4a;}        /* enemy actions */
+    .rf-critical .rfText{color:#ff5a5a;}     /* collapses/death */
+    .rf-defensive .rfText{color:#6fa8dc;}    /* guard/brace */
+    .rf-info .rfText{color:#5cc6d6;}         /* observe/inspect discoveries */
+
     .rf-system .rfText{color:rgba(205,210,222,.72);}
     .rf-enter .rfText{color:rgba(196,181,253,.98);}      /* entering room flavor */
-    .rf-ambient .rfText{color:rgba(170,184,201,.78);}    /* drips/clinks/wind */
+    .rf-ambient .rfText{color:#7a7a7a; font-style:italic; opacity:.72;}    /* recessed ambience */
     .rf-presence .rfText{color:rgba(142,211,255,.92);}   /* players connecting/passing */
     .rf-move .rfText{color:rgba(120,208,221,.94);}       /* movement/scouting/doors */
-    .rf-engage .rfText{color:rgba(255,210,128,.96);}     /* engage declarations */
-    .rf-clash .rfText{color:rgba(255,146,102,.98);}      /* active exchange */
     .rf-condition .rfText{color:rgba(255,229,138,.98);}  /* faltering/wounded/near death */
-    .rf-death .rfText{color:rgba(255,122,133,.98);}      /* collapses/death beats */
     .rf-spawn .rfText{color:rgba(158,235,170,.95);}      /* appears/spawns */
-    .rf-loot .rfText{color:rgba(110,226,156,.95);}       /* loot/open/pickup */
+    .rf-loot .rfText{color:#e6b85c;}       /* pickup/reward */
 
     .roomLegend{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
     .lg{font-size:10px; padding:2px 6px; border-radius:0; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.03);}
