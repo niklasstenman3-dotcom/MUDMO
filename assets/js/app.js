@@ -839,7 +839,7 @@ class GameEngine {
 
       const now = U.now();
       const lastAmb = room.ambientMeta?.lastAmbientAt || 0;
-      if (room.playerIds?.length && (now - lastAmb) >= 4500){
+      if (room.playerIds?.length && (now - lastAmb) >= 4500 && !this._roomHasActiveCombat(room)){
         this._emitRoomAmbient(room);
       }
 
@@ -1546,9 +1546,9 @@ class App {
       if (t.startsWith("moved ") || t.startsWith("scouted ") || t.includes("door is ") || t.includes("opened the") || t.includes("closed the") || t.includes("unlocked the")) return "rf-move";
 
       if (t.includes("engage the")) return "rf-engage";
-      if (t.includes("steel clashes")) return "rf-clash";
+      if (t.includes("steel clashes") || t.includes(" hits ") || t.includes(" misses ") || t.includes("skitters") || t.includes("stresses")) return "rf-clash";
       if (t.includes("faltering") || t.includes("badly wounded") || t.includes("near death")) return "rf-condition";
-      if (t.includes("collapses") || t.includes("fall unconscious")) return "rf-death";
+      if (t.includes("collapses") || t.includes("fall unconscious") || t.includes("is defeated")) return "rf-death";
       if (/^a\s.+\sappears\./.test(t)) return "rf-spawn";
 
       if (t.includes("loot") || t.includes("picked up") || t.includes("opened chest") || t.includes("unlocked")) return "rf-loot";
@@ -1567,7 +1567,8 @@ class App {
       return txt;
     };
 
-    const ambientState = this.renderAmbientStateLine(roomEvents, ctx.room, fmtTime(U.now()));
+    const hasActiveCombat = Object.values(ctx.room?.combats || {}).some(c => Object.keys(c?.engaged || {}).length > 0);
+    const ambientState = hasActiveCombat ? null : this.renderAmbientStateLine(roomEvents, ctx.room, fmtTime(U.now()));
 
     const entries = roomEvents.map(e => {
       const time = fmtTime(e.ts);
